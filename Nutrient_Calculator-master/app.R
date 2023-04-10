@@ -8,7 +8,7 @@ library(googleAuthR)
 library(reticulate)
 library(jsonlite)
 
-
+user_email <- reactiveVal("")
 # load files from Canada Nutrient File
 
 nutr_files <- list.files(pattern = "*.rda")
@@ -41,7 +41,6 @@ names(ca_food_choices) <- ca_food_name$FoodDescription
 
 
 # format daily values
-
 daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFactors = F)
 
 ui <- dashboardPage(
@@ -122,7 +121,35 @@ server <- function(input, output, session) {
   
   # handle button click
   observeEvent(input$save_recipe, {
+    # print("email is")
+    # print(user_email)
+    
+    print("====ingredients list")
     print(ingredients_list)
+    
+    # Convert the list to JSON text
+    receipt_data <- toJSON(ingredients_list())
+    
+    # Print the JSON text
+    print("====receipt info")
+    print(receipt_data)
+    
+    # Check if user email exists
+    if (is.null(user_email())) {
+      print("No user email!!!")
+    }
+    else {
+      # Import the database module
+      database <- import("db")
+      print("=====save receipt")
+      print(list(user_email(), receipt_data))
+      database$save_receipt(user_email(), receipt_data)
+      # Print all receipt of this user
+      receipts <- database$get_receipts(user_email())
+      print("======print all receipts")
+      dput(receipts)
+    }
+    
   })
   
   # handle button click
@@ -145,6 +172,9 @@ server <- function(input, output, session) {
         f()
       }
       user_info <- get_name_and_email()
+      user_email(user_info$email)
+      print("email is")
+      print(user_email)
       
       # Import the database module
       database <- import("db")

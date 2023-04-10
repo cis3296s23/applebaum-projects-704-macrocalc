@@ -13,6 +13,16 @@ def create_connection():
 # Create table users to store the name and email data
 conn = create_connection()
 conn.execute("CREATE TABLE IF NOT EXISTS users (name TEXT, email TEXT PRIMARY KEY)")
+# create a table for the receipts
+conn.execute('''
+CREATE TABLE IF NOT EXISTS receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    details TEXT
+);
+''')
+# Remove all receipts from the "receipts" table
+# conn.execute("DELETE FROM receipts")
 conn.close()
 
 # Save name and email to the table users
@@ -21,6 +31,18 @@ def save_user_info(name, email):
     try:
         # Insert the name and email data into the database
         conn.execute("INSERT OR IGNORE INTO users (name, email) VALUES (?, ?)", (name, email))
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+        
+def save_receipt(email, details):
+    conn = create_connection()
+    try:
+        # Insert new receipt
+        conn.execute('INSERT INTO receipts (email, details) VALUES (?, ?)', (email, details))
         conn.commit()
     except sqlite3.Error as e:
         # Handle any database errors that may occur
@@ -43,6 +65,15 @@ def get_user_info(email):
     user_info = cursor.fetchone()
     conn.close()
     return user_info
+  
+# Get all receipt of a user by email address
+def get_receipts(email):
+    conn = create_connection()
+    # retrieve all receipts
+    cursor = conn.execute('SELECT id, email, details FROM receipts WHERE email = ?', (email,))
+    receipts = cursor.fetchall()
+    conn.close()
+    return receipts
 
 # Close the database connection
 def close_connection():
