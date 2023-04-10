@@ -4,6 +4,10 @@ library(DT)
 library(ggplot2)
 library(shinydashboard)
 library(plotly)
+library(googleAuthR)
+library(reticulate)
+library(jsonlite)
+
 
 # load files from Canada Nutrient File
 
@@ -43,6 +47,9 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
+    actionButton("login_with_google", "Log in with Google"),
+    actionButton("save_recipe", "Save Recipe"),
+
     selectizeInput(
       'food_id', '1. Ingredient', choices = ca_food_choices,
       options = list(
@@ -95,8 +102,72 @@ ui <- dashboardPage(
 
 )
 
+# Define a reactive variable to store the list of ingredients
+ingredients_list <- reactiveVal(list())
+
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  # read the credentials file
+  json_str <- readLines("gg_auth.json", warn = FALSE)
+  creds <- fromJSON(json_str)
+  
+  # set up authentication
+  options(googleAuthR.client_id = creds$client_id)
+  options(googleAuthR.client_secret = creds$client_secret)
+  options(googleAuthR.scopes.selected = creds$scopes)
+  options(googleAuthR.redirect = "http://localhost:1410")
+  
+  # define a reactive value to track authentication state
+  authenticated <- reactiveVal(FALSE)
+  
+  # handle button click
+  observeEvent(input$save_recipe, {
+    print(ingredients_list)
+  })
+  
+  # handle button click
+  observeEvent(input$login_with_google, {
+    googleAuthR::gar_auth()
+    authenticated(TRUE)
+  })
+  
+  # check if user is authenticated
+  observe({
+    if (authenticated()) {
+      
+      get_name_and_email <- function() {
+        f <- gar_api_generator(
+          "https://openidconnect.googleapis.com/v1/userinfo",
+          "GET",
+          data_parse_function = function(x) list(name = x$name, email = x$email),
+          checkTrailingSlash = FALSE
+        )
+        f()
+      }
+      user_info <- get_name_and_email()
+      
+      # Import the database module
+      database <- import("db")
+
+      # Get user data from db using email
+      user_info_db <- database$get_user_info(user_info$email)
+      # New user
+      if (is.null(user_info_db)) {
+        print("New user! Save data to db")
+        database$save_user_info(user_info$name, user_info$email)
+      }
+      # Existing user
+      else {
+        print("Existing user, print all users")
+        test <- database$get_all_data()
+        dput(test)
+      }
+    }
+    
+    
+  })
+  
+
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
   ing_df$df <- data.frame("quantity" = numeric(), 
@@ -125,11 +196,17 @@ server <- function(input, output, session) {
     units <- unique(paste(measure_df()$units, measure_df()$description))
     updateSelectInput(session, "measure_unit", "2. Measure Unit", choices = units)
   })
+  
+  
+  
   # step 3 update the ingredient dataframe
   observeEvent(input$remove, {
     isolate(ing_df$df<-ing_df$df[-(nrow(ing_df$df)),])
     isolate(ing_df$measure <- ing_df$measure[-nrow(ing_df$measure),])
+    ingredients_list(ing_df$df)
   })
+  
+  
   observeEvent(input$add, {
     isolate(ing_df$df[nrow(ing_df$df) + 1,] <- c(input$quantity,
                                                  input$measure_unit, 
@@ -146,6 +223,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, 'quantity', '3. Quantity', 1)
     updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
     updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
+    ingredients_list(ing_df$df)
   })
   # main nutrition data frame
   nutrition_df <- reactive({
