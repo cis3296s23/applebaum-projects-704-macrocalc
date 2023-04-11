@@ -8,7 +8,7 @@ library(googleAuthR)
 library(reticulate)
 library(jsonlite)
 
-user_email <- reactiveVal("")
+
 # load files from Canada Nutrient File
 
 nutr_files <- list.files(pattern = "*.rda")
@@ -101,11 +101,15 @@ ui <- dashboardPage(
 
 )
 
-# Define a reactive variable to store the list of ingredients
-ingredients_list <- reactiveVal(list())
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  ########## SAVE RECIPE
+  user_email <- reactiveVal("")
+  # Define a reactive variable to store the list of ingredients
+  ingredients_list <- reactiveVal(list())
+
   # read the credentials file
   json_str <- readLines("gg_auth.json", warn = FALSE)
   creds <- fromJSON(json_str)
@@ -121,33 +125,36 @@ server <- function(input, output, session) {
   
   # handle button click
   observeEvent(input$save_recipe, {
-    # print("email is")
-    # print(user_email)
-    
     print("====ingredients list")
     print(ingredients_list)
     
+    save_data <- list(ingredients_list())
+    # add serving amounts
+    save_data[[1]]$serving_amounts <- input$serving
+    print("===== save data")
+    print(save_data)
+    
     # Convert the list to JSON text
-    receipt_data <- toJSON(ingredients_list())
+    recipe_data <- toJSON(save_data)
     
     # Print the JSON text
-    print("====receipt info")
-    print(receipt_data)
+    print("====recipe info")
+    print(recipe_data)
     
-    # Check if user email exists
-    if (is.null(user_email())) {
+    # Check if user email exists or not
+    if (is.null(user_email()) || nchar(user_email()) == 0) {
       print("No user email!!!")
     }
     else {
       # Import the database module
       database <- import("db")
-      print("=====save receipt")
-      print(list(user_email(), receipt_data))
-      database$save_receipt(user_email(), receipt_data)
-      # Print all receipt of this user
-      receipts <- database$get_receipts(user_email())
-      print("======print all receipts")
-      dput(receipts)
+      print("=====save recipe")
+      print(list(user_email(), recipe_data))
+      database$save_recipe(user_email(), recipe_data)
+      # Print all recipe of this user
+      recipes <- database$get_recipes(user_email())
+      print("======print all recipes")
+      dput(recipes)
     }
     
   })
