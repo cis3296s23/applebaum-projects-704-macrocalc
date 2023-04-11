@@ -7,6 +7,7 @@ library(plotly)
 library(googleAuthR)
 library(reticulate)
 library(jsonlite)
+library(shinyjs)
 
 # load files from Canada Nutrient File
 
@@ -46,7 +47,7 @@ ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
     actionButton("login_with_google", "Log in with Google"),
-    actionButton("save_recipe", "Save Recipe"),
+    
 
     selectizeInput(
       'food_id', '1. Ingredient', choices = ca_food_choices,
@@ -61,7 +62,9 @@ ui <- dashboardPage(
     actionButton("add", "Add ingredient"),
     actionButton("remove", "Remove ingredient"),
     numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.")
+    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling."),
+    actionButton("save_recipe", "Save Recipe"),
+    useShinyjs()
   ),
   dashboardBody(
     fluidRow(
@@ -164,6 +167,8 @@ server <- function(input, output, session) {
     # }
     googleAuthR::gar_auth()
     authenticated(TRUE)
+    
+    
   })
   
   # check if user is authenticated
@@ -183,6 +188,10 @@ server <- function(input, output, session) {
       user_email(user_info$email)
       print("email is")
       print(user_email)
+      
+      shinyjs::disable("login_with_google")
+      # Change the text of the button to "Recipe Saved!" and disable it
+      updateActionButton(session, "login_with_google", label = user_email())
       
       # Import the database module
       database <- import("db")
