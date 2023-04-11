@@ -8,7 +8,6 @@ library(googleAuthR)
 library(reticulate)
 library(jsonlite)
 
-
 # load files from Canada Nutrient File
 
 nutr_files <- list.files(pattern = "*.rda")
@@ -119,7 +118,7 @@ server <- function(input, output, session) {
   options(googleAuthR.client_secret = creds$client_secret)
   options(googleAuthR.scopes.selected = creds$scopes)
   options(googleAuthR.redirect = "http://localhost:1410")
-  
+
   # define a reactive value to track authentication state
   authenticated <- reactiveVal(FALSE)
   
@@ -127,15 +126,9 @@ server <- function(input, output, session) {
   observeEvent(input$save_recipe, {
     print("====ingredients list")
     print(ingredients_list)
-    
-    save_data <- list(ingredients_list())
-    # add serving amounts
-    save_data[[1]]$serving_amounts <- input$serving
-    print("===== save data")
-    print(save_data)
-    
+
     # Convert the list to JSON text
-    recipe_data <- toJSON(save_data)
+    recipe_data <- toJSON(ingredients_list())
     
     # Print the JSON text
     print("====recipe info")
@@ -150,7 +143,7 @@ server <- function(input, output, session) {
       database <- import("db")
       print("=====save recipe")
       print(list(user_email(), recipe_data))
-      database$save_recipe(user_email(), recipe_data)
+      database$save_recipe(user_email(), input$serving, recipe_data)
       # Print all recipe of this user
       recipes <- database$get_recipes(user_email())
       print("======print all recipes")
@@ -161,6 +154,14 @@ server <- function(input, output, session) {
   
   # handle button click
   observeEvent(input$login_with_google, {
+    # # Check if there is a valid token
+    # if (!googleAuthR::gar_check_existing_token()) {
+    #   # Refresh the token
+    #   googleAuthR::gar_auth()
+    # }
+    # else {
+    #   print("======token valid")
+    # }
     googleAuthR::gar_auth()
     authenticated(TRUE)
   })

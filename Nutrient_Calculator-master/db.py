@@ -18,6 +18,7 @@ conn.execute('''
 CREATE TABLE IF NOT EXISTS recipes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL,
+    serving_amounts NUMERIC,
     details TEXT
 );
 ''')
@@ -38,11 +39,11 @@ def save_user_info(name, email):
     finally:
         conn.close()
         
-def save_recipe(email, details):
+def save_recipe(email, serving_amounts, details):
     conn = create_connection()
     try:
         # Insert new recipe
-        conn.execute('INSERT INTO recipes (email, details) VALUES (?, ?)', (email, details))
+        conn.execute('INSERT INTO recipes (email, serving_amounts, details) VALUES (?, ?, ?)', (email, serving_amounts, details))
         conn.commit()
     except sqlite3.Error as e:
         # Handle any database errors that may occur
