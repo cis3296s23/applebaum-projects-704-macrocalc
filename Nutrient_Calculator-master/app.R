@@ -43,64 +43,88 @@ names(ca_food_choices) <- ca_food_name$FoodDescription
 # format daily values
 daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFactors = F)
 
+# navbar Solution [might not be good for mobile view]
+# ui <- shinyUI(
+#   navbarPage("Navbar test", 
+#              tabPanel("Home", h4("This will be the homepage where users can interact with recipes/ingredients(uploading/modifying/favoriting/adding to log).")),
+#              tabPanel("Activity Page", h4("In the activity page the user can view total breakdown/comapre macros/remove meals/view their log")),
+#              tabPanel("Settings", h4("here the user may be able to edit their profile(set goals)")
+#                       )
+#              )
+# )
+
+
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
-    actionButton("login_with_google", "Log in with Google"),
-    
-
-    selectizeInput(
-      'food_id', '1. Ingredient', choices = ca_food_choices,
-      options = list(
-        placeholder = 'Type to search for ingredient',
-        onInitialize = I('function() { this.setValue(""); }')
-      )
+    sidebarMenu(
+      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
+      menuSubItem("opt. home subtab", tabName = "subhome"),
+      menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
+      menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
+      tags$p("Notice: some info note")
+      # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
-    conditionalPanel('input.food_id != ""', 
-                     selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                     numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-    actionButton("add", "Add ingredient"),
-    actionButton("remove", "Remove ingredient"),
-    numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling."),
+    actionButton("login_with_google", "Log in with Google"),
     actionButton("save_recipe", "Save Recipe"),
     useShinyjs()
+    
   ),
   dashboardBody(
-    fluidRow(
-      valueBoxOutput("calories"),
-      valueBoxOutput("over_nutrient"),
-      valueBoxOutput("rich_nutrient")
-    ),
-    fluidRow(
-      box(title = "Ingredients",
-          solidHeader = T,
-          width = 4,
-          collapsible = T,
-          div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
-      box(title = "Macronutrients", solidHeader = T,
-          width = 8, collapsible = T,
-          plotlyOutput("macro_plot"))
-    ), # row
-    fluidRow(
-      box(title = "Nutrition Table",
-          solidHeader = T,
-          width = 4, 
-          collapsible = T,
-          collapsed = F,
-          tags$p(textOutput("serving", inline = T)),
-          div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
-      box(title = "Minerals", solidHeader = T,
-          width = 8, collapsible = T,
-          plotlyOutput("mineral_plot"))
-    ),# row
-    fluidRow(
-      box(title = "Vitamins", solidHeader=T,
-          width = 12, collapsible = T,
-          plotlyOutput("vitamin_plot"))
-    ) # row
+    tabItems(
+      tabItem(tabName = "Hometab", selectizeInput(
+        'food_id', '1. Ingredient', choices = ca_food_choices,
+        options = list(
+          placeholder = 'Type to search for ingredient',
+          onInitialize = I('function() { this.setValue(""); }')
+        )
+      ),
+      conditionalPanel('input.food_id != ""', 
+                       selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+                       numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+      actionButton("add", "Add ingredient"),
+      actionButton("remove", "Remove ingredient"),
+      numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
+      tabItem(tabName = "subhome", h1("we could split recipe interaction into sub-sections like this")),
+      tabItem(tabName = "Activitytab", 
+              fluidRow(
+                valueBoxOutput("calories"),
+                valueBoxOutput("over_nutrient"),
+                valueBoxOutput("rich_nutrient")
+              ),
+              fluidRow(
+                box(title = "Ingredients",
+                    solidHeader = T,
+                    width = 4,
+                    collapsible = T,
+                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                box(title = "Macronutrients", solidHeader = T,
+                    width = 8, collapsible = T,
+                    plotlyOutput("macro_plot"))
+              ), # row
+              fluidRow(
+                box(title = "Nutrition Table",
+                    solidHeader = T,
+                    width = 4, 
+                    collapsible = T,
+                    collapsed = F,
+                    tags$p(textOutput("serving", inline = T)),
+                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
+                box(title = "Minerals", solidHeader = T,
+                    width = 8, collapsible = T,
+                    plotlyOutput("mineral_plot"))
+              ),# row
+              fluidRow(
+                box(title = "Vitamins", solidHeader=T,
+                    width = 12, collapsible = T,
+                    plotlyOutput("vitamin_plot"))
+              ) # row
+      ),
+      tabItem(tabName = "Settingstab", h1("welcome to settings"))
+      
+    )
   ) # body
-
+  
 )
 
 
@@ -111,7 +135,7 @@ server <- function(input, output, session) {
   user_email <- reactiveVal("")
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
-
+  
   # read the credentials file
   json_str <- readLines("gg_auth.json", warn = FALSE)
   creds <- fromJSON(json_str)
@@ -121,7 +145,7 @@ server <- function(input, output, session) {
   options(googleAuthR.client_secret = creds$client_secret)
   options(googleAuthR.scopes.selected = creds$scopes)
   options(googleAuthR.redirect = "http://localhost:1410")
-
+  
   # define a reactive value to track authentication state
   authenticated <- reactiveVal(FALSE)
   
@@ -129,7 +153,7 @@ server <- function(input, output, session) {
   observeEvent(input$save_recipe, {
     print("====ingredients list")
     print(ingredients_list)
-
+    
     # Convert the list to JSON text
     recipe_data <- toJSON(ingredients_list())
     
@@ -195,7 +219,7 @@ server <- function(input, output, session) {
       
       # Import the database module
       database <- import("db")
-
+      
       # Get user data from db using email
       user_info_db <- database$get_user_info(user_info$email)
       # New user
@@ -214,7 +238,7 @@ server <- function(input, output, session) {
     
   })
   
-
+  
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
   ing_df$df <- data.frame("quantity" = numeric(), 
@@ -283,7 +307,7 @@ server <- function(input, output, session) {
       # filter(NutrientID %in% select_nutrients) %>%
       mutate(NutrientName = tolower(NutrientName)) %>%
       mutate(NutrientValue = as.numeric(NutrientValue) * as.numeric(ConversionFactorValue) * as.numeric(quantity) / as.numeric(numeric) / input$serving) %>%
-    select(NutrientName, NutrientValue, NutrientID, NutrientUnit, ConversionFactorValue, quantity, FoodID) %>% 
+      select(NutrientName, NutrientValue, NutrientID, NutrientUnit, ConversionFactorValue, quantity, FoodID) %>% 
       group_by(NutrientName) %>% 
       summarize(Value = round(sum(NutrientValue, na.rm = T),2),
                 Unit = first(NutrientUnit),
@@ -341,8 +365,8 @@ server <- function(input, output, session) {
                           na.value = "khaki1", 
                           name = "% Daily Value") +
       theme(
-            legend.position = "none",
-            panel.background = element_rect(fill = "lightyellow"))
+        legend.position = "none",
+        panel.background = element_rect(fill = "lightyellow"))
     ggplotly(plot_min)
   })
   output$vitamin_plot <- renderPlotly({
@@ -365,7 +389,7 @@ server <- function(input, output, session) {
   })
   # dt indicator
   output$ing_df <- DT::renderDataTable(ing_df$df[,1:3], 
-                                      # colnames = c("Quantity", "Units", "Ingredient"), 
+                                       # colnames = c("Quantity", "Units", "Ingredient"), 
                                        rownames=F, options = list(pageLength = 5))
   output$nutrient_table <- DT::renderDataTable(nutrient_table())
   # value boxes
@@ -390,11 +414,11 @@ server <- function(input, output, session) {
     } else {
       valueBox(HTML("All nutrients"), "below 50% recommended DV", icon = icon("exclamation-triangle"), color = "orange")
     }
-      
+    
   })
   output$serving <- renderText(paste("for 1 serving (", input$serving, "servings in recipe)"))
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-  
+
