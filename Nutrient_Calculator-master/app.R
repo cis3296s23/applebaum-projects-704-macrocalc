@@ -40,57 +40,82 @@ names(ca_food_choices) <- ca_food_name$FoodDescription
 
 daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFactors = F)
 
+# navbar Solution [might not be good for mobile view]
+# ui <- shinyUI(
+#   navbarPage("Navbar test", 
+#              tabPanel("Home", h4("This will be the homepage where users can interact with recipes/ingredients(uploading/modifying/favoriting/adding to log).")),
+#              tabPanel("Activity Page", h4("In the activity page the user can view total breakdown/comapre macros/remove meals/view their log")),
+#              tabPanel("Settings", h4("here the user may be able to edit their profile(set goals)")
+#                       )
+#              )
+# )
+
+
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
-    selectizeInput(
-      'food_id', '1. Ingredient', choices = ca_food_choices,
-      options = list(
-        placeholder = 'Type to search for ingredient',
-        onInitialize = I('function() { this.setValue(""); }')
-      )
-    ),
-    conditionalPanel('input.food_id != ""', 
-                     selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                     numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-    actionButton("add", "Add ingredient"),
-    actionButton("remove", "Remove ingredient"),
-    numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.")
+    sidebarMenu(
+      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
+        menuSubItem("opt. home subtab", tabName = "subhome"),
+      menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
+      menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
+      tags$p("Notice: some info note")
+      # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
+    )
   ),
   dashboardBody(
-    fluidRow(
-      valueBoxOutput("calories"),
-      valueBoxOutput("over_nutrient"),
-      valueBoxOutput("rich_nutrient")
-    ),
-    fluidRow(
-      box(title = "Ingredients",
-          solidHeader = T,
-          width = 4,
-          collapsible = T,
-          div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
-      box(title = "Macronutrients", solidHeader = T,
-          width = 8, collapsible = T,
-          plotlyOutput("macro_plot"))
-    ), # row
-    fluidRow(
-      box(title = "Nutrition Table",
-          solidHeader = T,
-          width = 4, 
-          collapsible = T,
-          collapsed = F,
-          tags$p(textOutput("serving", inline = T)),
-          div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
-      box(title = "Minerals", solidHeader = T,
-          width = 8, collapsible = T,
-          plotlyOutput("mineral_plot"))
-    ),# row
-    fluidRow(
-      box(title = "Vitamins", solidHeader=T,
-          width = 12, collapsible = T,
-          plotlyOutput("vitamin_plot"))
-    ) # row
+    tabItems(
+      tabItem(tabName = "Hometab", selectizeInput(
+        'food_id', '1. Ingredient', choices = ca_food_choices,
+        options = list(
+          placeholder = 'Type to search for ingredient',
+          onInitialize = I('function() { this.setValue(""); }')
+        )
+      ),
+      conditionalPanel('input.food_id != ""', 
+                       selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+                       numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+      actionButton("add", "Add ingredient"),
+      actionButton("remove", "Remove ingredient"),
+      numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
+      tabItem(tabName = "subhome", h1("we could split recipe interaction into sub-sections like this")),
+      tabItem(tabName = "Activitytab", 
+              fluidRow(
+                valueBoxOutput("calories"),
+                valueBoxOutput("over_nutrient"),
+                valueBoxOutput("rich_nutrient")
+              ),
+              fluidRow(
+                box(title = "Ingredients",
+                    solidHeader = T,
+                    width = 4,
+                    collapsible = T,
+                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                box(title = "Macronutrients", solidHeader = T,
+                    width = 8, collapsible = T,
+                    plotlyOutput("macro_plot"))
+              ), # row
+              fluidRow(
+                box(title = "Nutrition Table",
+                    solidHeader = T,
+                    width = 4, 
+                    collapsible = T,
+                    collapsed = F,
+                    tags$p(textOutput("serving", inline = T)),
+                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
+                box(title = "Minerals", solidHeader = T,
+                    width = 8, collapsible = T,
+                    plotlyOutput("mineral_plot"))
+              ),# row
+              fluidRow(
+                box(title = "Vitamins", solidHeader=T,
+                    width = 12, collapsible = T,
+                    plotlyOutput("vitamin_plot"))
+              ) # row
+              ),
+      tabItem(tabName = "Settingstab", h1("welcome to settings"))
+      
+    )
   ) # body
 
 )
