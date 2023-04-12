@@ -64,6 +64,8 @@ ui <- dashboardPage(
     numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
     tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling."),
     actionButton("save_recipe", "Save Recipe"),
+    actionButton("save_ingredient_json", "Save Ingredients"),
+    fileInput("load_ingredient_json", "Load Ingredients"),
     useShinyjs()
   ),
   dashboardBody(
@@ -155,6 +157,7 @@ server <- function(input, output, session) {
     
   })
   
+  ##########LOGIN WITH GOOGLE
   # handle button click
   observeEvent(input$login_with_google, {
     # # Check if there is a valid token
@@ -213,7 +216,61 @@ server <- function(input, output, session) {
     
     
   })
+  ########## DOWNLOAD/UPLOAD Ingredients
+  # Download Ingredients as json
+  observeEvent(input$save_ingredient_json, {
+    # # Convert list object to JSON format
+    # json_data <- jsonlite::toJSON(ingredients_list())
+    # # Open file dialog to select file path and name
+    # file_path <- utils::file.choose(new = TRUE, title = "Save Ingredients")
+    # writeLines(json_data, file_path)
+    
+    
+    file_path <- file.choose()
+    jsonlite::write_json(ingredients_list(), file_path)
+    # Show confirmation message
+    showModal(modalDialog("Saved ingredients to JSON file!"))
+  })
   
+  # Upload Ingredients JSON file
+  observeEvent(input$load_ingredient_json, {
+    
+    
+    
+    # Open file dialog to select JSON file
+    file_path <- file.choose()
+    # Read JSON data from file
+    json_data <- readLines(file_path)
+    # Convert JSON data to R object
+    my_object <- jsonlite::fromJSON(json_data)
+    # Show confirmation message
+    showModal(modalDialog("Loaded Ingredients successfully!"))
+    # Print loaded object
+    print(my_object)
+    
+    # remove all of ingredients
+    isolate(ing_df$df <- NULL)
+    isolate(ing_df$measure <- NULL)
+    ingredients_list(ing_df$df)
+    
+    # update choices
+    updateNumericInput(session, 'quantity', '3. Quantity', 1)
+    updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
+    updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
+    
+    # # add from list
+    # isolate({
+    #   # loop through list and add each ingredient to dataframe
+    #   for (i in seq_along(ingredients_to_add())) {
+    #     ing_df$df[nrow(ing_df$df) + 1,] <- my_object[[i]]
+    #   }
+    # })
+    # 
+    # # update ingredient list
+    # ingredients_list(ing_df$df)
+    
+  })
+
 
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
