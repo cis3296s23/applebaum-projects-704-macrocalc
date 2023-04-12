@@ -4,6 +4,10 @@ library(DT)
 library(ggplot2)
 library(shinydashboard)
 library(plotly)
+library(googleAuthR)
+library(reticulate)
+library(jsonlite)
+library(shinyjs)
 
 # load files from Canada Nutrient File
 
@@ -37,12 +41,14 @@ names(ca_food_choices) <- ca_food_name$FoodDescription
 
 
 # format daily values
-
 daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFactors = F)
 
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
+    actionButton("login_with_google", "Log in with Google"),
+    
+
     selectizeInput(
       'food_id', '1. Ingredient', choices = ca_food_choices,
       options = list(
@@ -56,7 +62,9 @@ ui <- dashboardPage(
     actionButton("add", "Add ingredient"),
     actionButton("remove", "Remove ingredient"),
     numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.")
+    tags$p("Note: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling."),
+    actionButton("save_recipe", "Save Recipe"),
+    useShinyjs()
   ),
   dashboardBody(
     fluidRow(
@@ -95,8 +103,118 @@ ui <- dashboardPage(
 
 )
 
+
+
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  ########## SAVE RECIPE
+  user_email <- reactiveVal("")
+  # Define a reactive variable to store the list of ingredients
+  ingredients_list <- reactiveVal(list())
+
+  # read the credentials file
+  json_str <- readLines("gg_auth.json", warn = FALSE)
+  creds <- fromJSON(json_str)
+  
+  # set up authentication
+  options(googleAuthR.client_id = creds$client_id)
+  options(googleAuthR.client_secret = creds$client_secret)
+  options(googleAuthR.scopes.selected = creds$scopes)
+  options(googleAuthR.redirect = "http://localhost:1410")
+
+  # define a reactive value to track authentication state
+  authenticated <- reactiveVal(FALSE)
+  
+  # handle button click
+  observeEvent(input$save_recipe, {
+    print("====ingredients list")
+    print(ingredients_list)
+
+    # Convert the list to JSON text
+    recipe_data <- toJSON(ingredients_list())
+    
+    # Print the JSON text
+    print("====recipe info")
+    print(recipe_data)
+    
+    # Check if user email exists or not
+    if (is.null(user_email()) || nchar(user_email()) == 0) {
+      print("No user email!!!")
+    }
+    else {
+      # Import the database module
+      database <- import("db")
+      print("=====save recipe")
+      print(list(user_email(), recipe_data))
+      database$save_recipe(user_email(), input$serving, recipe_data)
+      # Print all recipe of this user
+      recipes <- database$get_recipes(user_email())
+      print("======print all recipes")
+      dput(recipes)
+    }
+    
+  })
+  
+  # handle button click
+  observeEvent(input$login_with_google, {
+    # # Check if there is a valid token
+    # if (!googleAuthR::gar_check_existing_token()) {
+    #   # Refresh the token
+    #   googleAuthR::gar_auth()
+    # }
+    # else {
+    #   print("======token valid")
+    # }
+    googleAuthR::gar_auth()
+    authenticated(TRUE)
+    
+    
+  })
+  
+  # check if user is authenticated
+  observe({
+    if (authenticated()) {
+      
+      get_name_and_email <- function() {
+        f <- gar_api_generator(
+          "https://openidconnect.googleapis.com/v1/userinfo",
+          "GET",
+          data_parse_function = function(x) list(name = x$name, email = x$email),
+          checkTrailingSlash = FALSE
+        )
+        f()
+      }
+      user_info <- get_name_and_email()
+      user_email(user_info$email)
+      print("email is")
+      print(user_email)
+      
+      shinyjs::disable("login_with_google")
+      # Change the text of the button to "Recipe Saved!" and disable it
+      updateActionButton(session, "login_with_google", label = user_email())
+      
+      # Import the database module
+      database <- import("db")
+
+      # Get user data from db using email
+      user_info_db <- database$get_user_info(user_info$email)
+      # New user
+      if (is.null(user_info_db)) {
+        print("New user! Save data to db")
+        database$save_user_info(user_info$name, user_info$email)
+      }
+      # Existing user
+      else {
+        print("Existing user, print all users")
+        test <- database$get_all_data()
+        dput(test)
+      }
+    }
+    
+    
+  })
+  
+
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
   ing_df$df <- data.frame("quantity" = numeric(), 
@@ -125,11 +243,17 @@ server <- function(input, output, session) {
     units <- unique(paste(measure_df()$units, measure_df()$description))
     updateSelectInput(session, "measure_unit", "2. Measure Unit", choices = units)
   })
+  
+  
+  
   # step 3 update the ingredient dataframe
   observeEvent(input$remove, {
     isolate(ing_df$df<-ing_df$df[-(nrow(ing_df$df)),])
     isolate(ing_df$measure <- ing_df$measure[-nrow(ing_df$measure),])
+    ingredients_list(ing_df$df)
   })
+  
+  
   observeEvent(input$add, {
     isolate(ing_df$df[nrow(ing_df$df) + 1,] <- c(input$quantity,
                                                  input$measure_unit, 
@@ -146,6 +270,7 @@ server <- function(input, output, session) {
     updateNumericInput(session, 'quantity', '3. Quantity', 1)
     updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
     updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
+    ingredients_list(ing_df$df)
   })
   # main nutrition data frame
   nutrition_df <- reactive({
