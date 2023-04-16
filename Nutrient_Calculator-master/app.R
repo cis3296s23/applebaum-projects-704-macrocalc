@@ -4,7 +4,6 @@ library(DT)
 library(ggplot2)
 library(shinydashboard)
 library(plotly)
-library(googleAuthR)
 library(reticulate)
 library(jsonlite)
 library(shinyjs)
@@ -65,12 +64,10 @@ ui <- dashboardPage(
       tags$p("Notice: some info note")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
-    actionButton("login_with_google", "Log in with Google"),
     actionButton("save_recipe", "Save Recipe"),
-    actionButton("save_ingredient_json", "Save Ingredients"),
+    actionButton("save_ingredient_json", "Download Ingredients as JSON"),
     fileInput("load_ingredient_json", "Load Ingredients"),
     useShinyjs()
-    
   ),
   dashboardBody(
     tabItems(
@@ -124,7 +121,7 @@ ui <- dashboardPage(
       ),
       tabItem(tabName = "Settingstab", h1("welcome to settings"))
       
-    )
+    ) # tabItems
   ) # body
   
 )
@@ -133,24 +130,19 @@ ui <- dashboardPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  
+  ########## Global Var here
+  g_user_email <- reactiveVal("tranbaoson2005@gmail.com")
+  g_user_name <- reactiveVal("son tran")
+  # define a reactive value to track authentication state
+  g_authenticated <- reactiveVal(FALSE)
+  
+  
   ########## SAVE RECIPE
-  user_email <- reactiveVal("")
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
   
-  # read the credentials file
-  json_str <- readLines("gg_auth.json", warn = FALSE)
-  creds <- fromJSON(json_str)
   
-  # set up authentication
-  options(googleAuthR.client_id = creds$client_id)
-  options(googleAuthR.client_secret = creds$client_secret)
-  options(googleAuthR.scopes.selected = creds$scopes)
-  options(googleAuthR.browser = getOption("browser"))
-  options(googleAuthR.redirect = "http://localhost:1410")
-  
-  # define a reactive value to track authentication state
-  authenticated <- reactiveVal(FALSE)
   
   # handle button click
   observeEvent(input$save_recipe, {
@@ -165,17 +157,17 @@ server <- function(input, output, session) {
     print(recipe_data)
     
     # Check if user email exists or not
-    if (is.null(user_email()) || nchar(user_email()) == 0) {
+    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
       print("No user email!!!")
     }
     else {
       # Import the database module
       database <- import("db")
       print("=====save recipe")
-      print(list(user_email(), recipe_data))
-      database$save_recipe(user_email(), input$serving, recipe_data)
+      print(list(g_user_email(), recipe_data))
+      database$save_recipe(g_user_email(), input$serving, recipe_data)
       # Print all recipe of this user
-      recipes <- database$get_recipes(user_email())
+      recipes <- database$get_recipes(g_user_email())
       print("======print all recipes")
       dput(recipes)
     }
@@ -183,57 +175,25 @@ server <- function(input, output, session) {
   })
   
   ##########LOGIN WITH GOOGLE
-  # handle button click
-  observeEvent(input$login_with_google, {
-    # # Check if there is a valid token
-    # if (!googleAuthR::gar_check_existing_token()) {
-    #   # Refresh the token
-    #   googleAuthR::gar_auth()
-    # }
-    # else {
-    #   print("======token valid")
-    # }
-    
-    # gar_auto_auth(required_scopes = creds$scopes)
-
-    googleAuthR::gar_auth()
-    
-    authenticated(TRUE)
-    
-    
-  })
+  g_authenticated(TRUE)
   
   # check if user is authenticated
   observe({
-    if (authenticated()) {
-      
-      get_name_and_email <- function() {
-        f <- gar_api_generator(
-          "https://openidconnect.googleapis.com/v1/userinfo",
-          "GET",
-          data_parse_function = function(x) list(name = x$name, email = x$email),
-          checkTrailingSlash = FALSE
-        )
-        f()
-      }
-      user_info <- get_name_and_email()
-      user_email(user_info$email)
+    if (g_authenticated()) {
+
       print("email is")
-      print(user_email)
+      print(g_user_email)
       
-      shinyjs::disable("login_with_google")
-      # Change the text of the button to "Recipe Saved!" and disable it
-      updateActionButton(session, "login_with_google", label = user_email())
-      
+
       # Import the database module
       database <- import("db")
       
       # Get user data from db using email
-      user_info_db <- database$get_user_info(user_info$email)
+      user_info_db <- database$get_user_info(g_user_email())
       # New user
       if (is.null(user_info_db)) {
         print("New user! Save data to db")
-        database$save_user_info(user_info$name, user_info$email)
+        database$save_user_info(user_info$name, g_user_email())
       }
       # Existing user
       else {
@@ -248,13 +208,6 @@ server <- function(input, output, session) {
   ########## DOWNLOAD/UPLOAD Ingredients
   # Download Ingredients as json
   observeEvent(input$save_ingredient_json, {
-    # # Convert list object to JSON format
-    # json_data <- jsonlite::toJSON(ingredients_list())
-    # # Open file dialog to select file path and name
-    # file_path <- utils::file.choose(new = TRUE, title = "Save Ingredients")
-    # writeLines(json_data, file_path)
-    
-    
     file_path <- file.choose()
     jsonlite::write_json(ingredients_list(), file_path)
     # Show confirmation message
@@ -263,9 +216,7 @@ server <- function(input, output, session) {
   
   # Upload Ingredients JSON file
   observeEvent(input$load_ingredient_json, {
-    
-    
-    
+
     # Open file dialog to select JSON file
     file_path <- file.choose()
     # Read JSON data from file
@@ -482,7 +433,7 @@ server <- function(input, output, session) {
 }
 
 # Run the application 
-shinyApp(ui = ui, server = server)
+# shinyApp(ui = ui, server = server)
 # Run the app interactively
-# runApp(shinyApp(ui = ui, server = server), display.mode = "showcase")
+runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 # 
