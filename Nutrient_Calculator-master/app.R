@@ -65,6 +65,7 @@ ui <- dashboardPage(
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
     useShinyjs()
+    
   ),
   dashboardBody(
     tabItems(
@@ -97,7 +98,6 @@ ui <- dashboardPage(
                 column(4, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
               )
       ),
-      
       tabItem(tabName = "Activitytab", 
               fluidRow(
                 valueBoxOutput("calories"),
@@ -501,4 +501,4 @@ server <- function(input, output, session) {
 # shinyApp(ui = ui, server = server)
 # Run the app interactively
 runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
-# 
+
