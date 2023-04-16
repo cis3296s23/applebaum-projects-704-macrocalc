@@ -65,8 +65,8 @@ ui <- dashboardPage(
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
     actionButton("save_recipe", "Save Recipe"),
-    actionButton("save_ingredient_json", "Download Ingredients as JSON"),
-    fileInput("load_ingredient_json", "Load Ingredients"),
+    actionButton("download_ingredient_json", "Download Ingredients"),
+    actionButton("upload_ingredient_json", "Upload Ingredients"),
     useShinyjs()
   ),
   dashboardBody(
@@ -136,6 +136,10 @@ server <- function(input, output, session) {
   g_user_name <- reactiveVal("son tran")
   # define a reactive value to track authentication state
   g_authenticated <- reactiveVal(FALSE)
+  g_food_id <- reactiveVal(0)
+  g_measure_unit <- reactiveVal("")
+  g_quantity <- reactiveVal(0)
+  
   
   
   ########## SAVE RECIPE
@@ -206,17 +210,15 @@ server <- function(input, output, session) {
     
   })
   ########## DOWNLOAD/UPLOAD Ingredients
-  # Download Ingredients as json
-  observeEvent(input$save_ingredient_json, {
+  # Download Ingredients as json file
+  observeEvent(input$download_ingredient_json, {
     file_path <- file.choose()
     jsonlite::write_json(ingredients_list(), file_path)
     # Show confirmation message
     showModal(modalDialog("Saved ingredients to JSON file!"))
   })
-  
-  # Upload Ingredients JSON file
-  observeEvent(input$load_ingredient_json, {
-
+  # Upload Ingredients as JSON file
+  observeEvent(input$upload_ingredient_json, {
     # Open file dialog to select JSON file
     file_path <- file.choose()
     # Read JSON data from file
@@ -224,32 +226,52 @@ server <- function(input, output, session) {
     # Convert JSON data to R object
     my_object <- jsonlite::fromJSON(json_data)
     # Show confirmation message
-    showModal(modalDialog("Loaded Ingredients successfully!"))
+    showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
+    delay(1000, removeModal())
     # Print loaded object
-    print(my_object)
+    # print(my_object)
     
-    # remove all of ingredients
-    isolate(ing_df$df <- NULL)
-    isolate(ing_df$measure <- NULL)
-    ingredients_list(ing_df$df)
-    
-    # update choices
-    updateNumericInput(session, 'quantity', '3. Quantity', 1)
-    updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
-    updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
-    
-    # # add from list
-    # isolate({
-    #   # loop through list and add each ingredient to dataframe
-    #   for (i in seq_along(ingredients_to_add())) {
-    #     ing_df$df[nrow(ing_df$df) + 1,] <- my_object[[i]]
-    #   }
-    # })
-    # 
-    # # update ingredient list
-    # ingredients_list(ing_df$df)
-    
+    for (i in 1:nrow(my_object)) {
+      # cat(paste0("Quantity: ", my_object$quantity[i], "\n"))
+      # cat(paste0("Units: ", my_object$units[i], "\n"))
+      # cat(paste0("Ingredient name: ", my_object$ingredient_name[i], "\n"))
+      # cat(paste0("Food ID: ", my_object$FoodID[i], "\n\n"))
+      
+      # prepare to import
+      g_food_id(as.numeric(my_object$FoodID[i]))
+      g_measure_unit(my_object$units[i])
+      g_quantity(as.numeric(my_object$quantity[i]))
+      
+      ing_df$df[nrow(ing_df$df) + 1,] <- c(g_quantity(),
+                                           g_measure_unit(),
+                                           my_object$ingredient_name[i],
+                                           g_food_id())
+      
+      # [1] "1"            " fritter "    "Corn fritter" "6"
+      # [1] "1"                                "ml "                              "Chinese dish, chow mein, chicken" "5" 
+      # [1] quantity        units           ingredient_name FoodID         
+      # <0 rows> (or 0-length row.names)
+      # [1] numeric               units                 description           ConversionFactorValue MeasureID             FoodID               
+      # <0 rows> (or 0-length row.names)
+      
+      # [1] "input measure:"
+      # # A tibble: 1 × 6
+      # numeric units description ConversionFactorValue MeasureID FoodID
+      # <dbl> <chr> <chr>                       <dbl>     <int>  <int>
+      #   1     100 ml    ""                          0.930       341      5
+      
+      
+      # get actual working ingredient dataframe for dplyr
+      input_measure <- measure_df()
+      input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == g_measure_unit(), ]
+      if(nrow(input_measure) > 1){
+        input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
+      }
+      isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
+      ingredients_list(ing_df$df)
+    }
   })
+  
 
 
   # make reactive to store ingredients
@@ -266,9 +288,21 @@ server <- function(input, output, session) {
                                "MeasureID" = numeric(),
                                "FoodID" = numeric(),
                                stringsAsFactors = F)
+  
+  # observe ingredient inputs
+  observeEvent(input$food_id, {
+    g_food_id(input$food_id)
+  })
+  observeEvent(input$measure_unit, {
+    g_measure_unit(input$measure_unit)
+  })
+  observeEvent(input$quantity, {
+    g_quantity(input$quantity)
+  })
+  
   # step 1 get singular ingredient
-  measure_df <- eventReactive(input$food_id,{
-    measure_df <- ca_food_name[ca_food_name$FoodID==input$food_id, "FoodID"] %>% 
+  measure_df <- eventReactive(g_food_id(),{
+    measure_df <- ca_food_name[ca_food_name$FoodID==g_food_id(), "FoodID"] %>% 
       left_join(ca_conversion_factor) %>% 
       left_join(ca_measure_name) %>% 
       select(numeric, units, description, ConversionFactorValue, MeasureID, FoodID) 
@@ -279,6 +313,7 @@ server <- function(input, output, session) {
   observe({
     units <- unique(paste(measure_df()$units, measure_df()$description))
     updateSelectInput(session, "measure_unit", "2. Measure Unit", choices = units)
+    
   })
   
   
@@ -296,6 +331,7 @@ server <- function(input, output, session) {
                                                  input$measure_unit, 
                                                  names(ca_food_choices[ca_food_choices == input$food_id]), 
                                                  as.numeric(input$food_id)))
+
     # get actual working ingredient dataframe for dplyr
     input_measure <- measure_df()
     input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
@@ -309,6 +345,8 @@ server <- function(input, output, session) {
     updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
     ingredients_list(ing_df$df)
   })
+  
+
   # main nutrition data frame
   nutrition_df <- reactive({
     measure_food_df <- ing_df$measure
@@ -384,7 +422,7 @@ server <- function(input, output, session) {
   })
   output$vitamin_plot <- renderPlotly({
     df_vit <- dv_df() %>% filter(Group == "vitamin")
-    req(input$quantity)
+    req(g_quantity())
     plot_vit <- ggplot(df_vit) + 
       geom_col(aes(x = Nutrient, y = pct_dv, fill = pct_dv)) +
       geom_hline(yintercept = 100) +
