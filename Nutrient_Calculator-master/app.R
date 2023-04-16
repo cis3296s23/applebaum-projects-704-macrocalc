@@ -7,9 +7,9 @@ library(plotly)
 library(reticulate)
 library(jsonlite)
 library(shinyjs)
+library(shinyFiles)
 
 # load files from Canada Nutrient File
-
 nutr_files <- list.files(pattern = "*.rda")
 lapply(nutr_files,load,.GlobalEnv)
 # format quantities for ingredients
@@ -64,9 +64,6 @@ ui <- dashboardPage(
       tags$p("Notice: some info note")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
-    actionButton("save_recipe", "Save Recipe"),
-    actionButton("download_ingredient_json", "Download Ingredients"),
-    actionButton("upload_ingredient_json", "Upload Ingredients"),
     useShinyjs()
   ),
   dashboardBody(
@@ -84,7 +81,23 @@ ui <- dashboardPage(
       actionButton("add", "Add ingredient"),
       actionButton("remove", "Remove ingredient"),
       numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
-      tabItem(tabName = "subhome", h1("we could split recipe interaction into sub-sections like this")),
+      # tabItem(tabName = "subhome", 
+      #         actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down")),
+      #         downloadButton('download_ingredient_json', 'Download Ingredients'),
+      #         fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"),
+      # ),
+      tabItem(tabName = "subhome", 
+              fluidRow(
+                column(4, actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down"))),
+              ),
+              fluidRow(
+                column(4, downloadButton('download_ingredient_json', 'Download Ingredients')),
+              ),
+              fluidRow(
+                column(4, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
+              )
+      ),
+      
       tabItem(tabName = "Activitytab", 
               fluidRow(
                 valueBoxOutput("calories"),
@@ -174,6 +187,10 @@ server <- function(input, output, session) {
       recipes <- database$get_recipes(g_user_email())
       print("======print all recipes")
       dput(recipes)
+      
+      # Show confirmation message
+      showModal(modalDialog("Save Recipes successfully!", easyClose = TRUE))
+      delay(1000, removeModal())
     }
     
   })
@@ -211,20 +228,30 @@ server <- function(input, output, session) {
   })
   ########## DOWNLOAD/UPLOAD Ingredients
   # Download Ingredients as json file
-  observeEvent(input$download_ingredient_json, {
-    file_path <- file.choose()
-    jsonlite::write_json(ingredients_list(), file_path)
-    # Show confirmation message
-    showModal(modalDialog("Saved ingredients to JSON file!"))
-  })
+  output$download_ingredient_json <- downloadHandler(
+    filename = function() {
+      paste("my_data", ".json", sep = "")
+    },
+    content = function(file) {
+      jsonlite::write_json(ingredients_list(), file)
+    }
+  )
+
   # Upload Ingredients as JSON file
   observeEvent(input$upload_ingredient_json, {
-    # Open file dialog to select JSON file
-    file_path <- file.choose()
-    # Read JSON data from file
-    json_data <- readLines(file_path)
-    # Convert JSON data to R object
-    my_object <- jsonlite::fromJSON(json_data)
+    # # Open file dialog to select JSON file
+    # file_path <- file.choose()
+    # # Read JSON data from file
+    # json_data <- readLines(file_path)
+    # # Convert JSON data to R object
+    # my_object <- jsonlite::fromJSON(json_data)
+    
+    
+    req(input$upload_ingredient_json)
+    my_object <- jsonlite::fromJSON(input$upload_ingredient_json$datapath)
+    # Do something with the json data
+    print(my_object)
+    
     # Show confirmation message
     showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
     delay(1000, removeModal())
