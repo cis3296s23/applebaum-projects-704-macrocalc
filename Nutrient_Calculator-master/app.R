@@ -158,41 +158,65 @@ server <- function(input, output, session) {
   ########## SAVE RECIPE
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
-  
-  
-  
-  # handle button click
+
+  # Save recipe
   observeEvent(input$save_recipe, {
-    print("====ingredients list")
-    print(ingredients_list)
+    result <- showModal(
+      modalDialog(
+        title = "Enter meal name",
+        textInput("meal_name", "Meal Name", value = ""),
+        footer = tagList(
+          actionButton("cancel_save_recipe", "Cancel"),
+          actionButton("submit_save_recipe", "Submit")
+        )
+      )
+    )
+
+  })
+  observeEvent(input$cancel_save_recipe, {
+    removeModal()
+  })
+  observeEvent(input$submit_save_recipe, {
+    # Handle the input value here
+    meal_name <- input$meal_name
+    print(paste("Save meal name: ", meal_name))
+    
+    
+    time_delay <- 3000
+    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
+      showModal(modalDialog("Please login before saving meal."))
+      delay(time_delay, removeModal())
+      return()
+    }
+    
+    if (nchar(meal_name) == 0) {
+      showModal(modalDialog("Please enter a meal name."))
+      delay(time_delay, removeModal())
+      return()
+    }
+    
+    if (length(ingredients_list()) == 0) {
+      showModal(modalDialog("Ingredient list is empty. Please add some ingredients."))
+      delay(time_delay, removeModal())
+      return()
+    }
     
     # Convert the list to JSON text
     recipe_data <- toJSON(ingredients_list())
     
-    # Print the JSON text
-    print("====recipe info")
-    print(recipe_data)
+    # Import the database module
+    database <- import("db")
+    print("=====save recipe")
+    print(list(g_user_email(), meal_name, input$serving, recipe_data))
+    database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
+    # Print all recipe of this user
+    recipes <- database$get_recipes(g_user_email())
+    print("======print all recipes")
+    print(recipes)
     
-    # Check if user email exists or not
-    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
-      print("No user email!!!")
-    }
-    else {
-      # Import the database module
-      database <- import("db")
-      print("=====save recipe")
-      print(list(g_user_email(), recipe_data))
-      database$save_recipe(g_user_email(), input$serving, recipe_data)
-      # Print all recipe of this user
-      recipes <- database$get_recipes(g_user_email())
-      print("======print all recipes")
-      dput(recipes)
-      
-      # Show confirmation message
-      showModal(modalDialog("Save Recipes successfully!", easyClose = TRUE))
-      delay(1000, removeModal())
-    }
-    
+    # Show confirmation message
+    showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
+    delay(1000, removeModal())
   })
   
   ##########LOGIN WITH GOOGLE
