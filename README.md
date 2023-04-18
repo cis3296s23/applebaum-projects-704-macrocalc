@@ -38,28 +38,28 @@ This is similar to paid closed-source nutrition tools that already exist such as
         <a href="https://github.com/son2005">
             <img src="https://avatars.githubusercontent.com/u/18011568?v=4" width="100;" alt="ApplebaumIan"/>
             <br />
-            <sub><b>Ian Tyler Applebaum</b></sub>
+            <sub><b>Son Tran</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/jutobash">
             <img src="https://avatars.githubusercontent.com/u/89528532?v=4" width="100;" alt="ApplebaumIan"/>
             <br />
-            <sub><b>Ian Tyler Applebaum</b></sub>
+            <sub><b>Justin Kuruvilla</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/PatrickBrady7">
             <img src="https://avatars.githubusercontent.com/u/97626904?v=4" width="100;" alt="ApplebaumIan"/>
             <br />
-            <sub><b>Ian Tyler Applebaum</b></sub>
+            <sub><b>Patrick Brady</b></sub>
         </a>
     </td>
     <td align="center">
         <a href="https://github.com/gevdram">
             <img src="https://avatars.githubusercontent.com/u/111989879?v=4" width="100;" alt="leighflagg"/>
             <br />
-            <sub><b>Null</b></sub>
+            <sub><b>Gevork Dramagotchian</b></sub>
         </a>
     </td></tr>
 </table>
