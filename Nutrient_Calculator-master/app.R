@@ -69,19 +69,23 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     tabItems(
-      tabItem(tabName = "Hometab", selectizeInput(
-        'food_id', '1. Ingredient', choices = ca_food_choices,
-        options = list(
-          placeholder = 'Type to search for ingredient',
-          onInitialize = I('function() { this.setValue(""); }')
-        )
+      tabItem(tabName = "Hometab", 
+        selectizeInput(
+          'food_id', '1. Ingredient', choices = ca_food_choices,
+          options = list(
+            placeholder = 'Type to search for ingredient',
+            onInitialize = I('function() { this.setValue(""); }')
+          )
+        ),
+        conditionalPanel('input.food_id != ""', 
+                         selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+                         numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+        actionButton("add", "Add ingredient"),
+        actionButton("remove", "Remove ingredient"),
+        numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
+        textInput("meal_name", "Meal Name:"),
       ),
-      conditionalPanel('input.food_id != ""', 
-                       selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                       numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-      actionButton("add", "Add ingredient"),
-      actionButton("remove", "Remove ingredient"),
-      numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
+      
       # tabItem(tabName = "subhome", 
       #         actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down")),
       #         downloadButton('download_ingredient_json', 'Download Ingredients'),
@@ -89,24 +93,26 @@ ui <- dashboardPage(
       # ),
       tabItem(tabName = "subhome", 
               fluidRow(
-                column(4, actionButton("save_recipe", "Save Recipe from Activity Page", icon = shiny::icon("cloud-arrow-up")))
-                
-              ),
-              fluidRow(
-                column(4, actionButton("load_recipe", "Load All Recipe from DB", icon = shiny::icon("cloud-arrow-down")))
-              ),
-              fluidRow(
                 box(title = "Your recipes",
                     solidHeader = T,
                     width = 12,
                     collapsible = T,
-                    div(DT::DTOutput("recipe_table"), style = "font-size: 70%;"))
+                    div(actionButton("save_recipe", "Save Recipes", icon = shiny::icon("cloud-arrow-up")), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_save_id"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_save_name"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_save_serving"), style = "font-size: 70%; margin: 5px;"),
+                    div(DT::DTOutput("recipe_table_save"), style = "font-size: 70%; margin: 5px;"),
+                    div(actionButton("load_recipe", "Load All Recipe", icon = shiny::icon("cloud-arrow-down")), style = "font-size: 70%; margin: 5px;"),
+                    div(DT::DTOutput("recipe_table"), style = "font-size: 70%; margin: 5px;")
+                )
               ),
               fluidRow(
-                column(4, downloadButton('download_ingredient_json', 'Download Ingredients')),
-              ),
-              fluidRow(
-                column(8, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
+                box(title = "Download / Upload Ingredients",
+                    solidHeader = T,
+                    width = 12,
+                    div(downloadButton('download_ingredient_json', 'Download Ingredients'), style = "font-size: 70%;"),
+                    div(fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
+                )
               )
       ),
       tabItem(tabName = "Activitytab", 
@@ -165,7 +171,8 @@ server <- function(input, output, session) {
   g_quantity <- reactiveVal(0)
   g_meal_data <- reactiveVal(list(list()))
   
-  
+  g_edit_meal_id <- reactiveVal(0)
+
   ########## SAVE RECIPE
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
@@ -175,7 +182,7 @@ server <- function(input, output, session) {
     result <- showModal(
       modalDialog(
         title = "Enter meal name",
-        textInput("meal_name", "Meal Name", value = ""),
+        textInput("p_meal_name", "Meal Name", value = input$meal_name),
         footer = tagList(
           modalButton("Cancel"),
           actionButton("submit_save_recipe", "Submit")
@@ -185,7 +192,7 @@ server <- function(input, output, session) {
   })
   observeEvent(input$submit_save_recipe, {
     # Handle the input value here
-    meal_name <- input$meal_name
+    meal_name <- input$p_meal_name
     print(paste("Save meal name: ", meal_name))
     
     
@@ -329,6 +336,43 @@ server <- function(input, output, session) {
     removeModal()
   })
   
+  observeEvent(ingredients_list(), {
+    print(length(ingredients_list()))
+    if (length(ingredients_list()) > 0) {
+      
+      id <- "new"
+      if (g_edit_meal_id() > 0) {
+        id <- g_edit_meal_id()
+      }
+      
+      output$recipe_table_save_id <- renderText({
+        paste0("ID: ", id)
+      })
+      output$recipe_table_save_name <- renderText({
+        paste0("Name: ", input$meal_name)
+      })
+      output$recipe_table_save_serving <- renderText({
+        paste0("Serving amounts: ", input$serving)
+      })
+    }
+    else {
+      output$recipe_table_save_id <- renderText({
+        ""
+      })
+      output$recipe_table_save_name <- renderText({
+        ""
+      })
+      output$recipe_table_save_serving <- renderText({
+        ""
+      })
+    }
+    
+    # update recipe table save here
+    output$recipe_table_save <- renderDT({
+      datatable(as.data.frame(ingredients_list()), editable = FALSE, 
+                options = list(pageLength = 5), selection = "single")
+    })
+  })
   
   
   
@@ -432,8 +476,9 @@ server <- function(input, output, session) {
         input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
       }
       isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
-      ingredients_list(ing_df$df)
+      ingredients_list(ing_df$df)  
     }
+    
   })
   
 
