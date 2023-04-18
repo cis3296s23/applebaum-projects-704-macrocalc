@@ -4,13 +4,12 @@ library(DT)
 library(ggplot2)
 library(shinydashboard)
 library(plotly)
-library(googleAuthR)
 library(reticulate)
 library(jsonlite)
 library(shinyjs)
+library(shinyFiles)
 
 # load files from Canada Nutrient File
-
 nutr_files <- list.files(pattern = "*.rda")
 lapply(nutr_files,load,.GlobalEnv)
 # format quantities for ingredients
@@ -65,8 +64,6 @@ ui <- dashboardPage(
       tags$p("Notice: some info note")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
-    actionButton("login_with_google", "Log in with Google"),
-    actionButton("save_recipe", "Save Recipe"),
     useShinyjs()
     
   ),
@@ -85,7 +82,22 @@ ui <- dashboardPage(
       actionButton("add", "Add ingredient"),
       actionButton("remove", "Remove ingredient"),
       numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
-      tabItem(tabName = "subhome", h1("we could split recipe interaction into sub-sections like this")),
+      # tabItem(tabName = "subhome", 
+      #         actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down")),
+      #         downloadButton('download_ingredient_json', 'Download Ingredients'),
+      #         fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"),
+      # ),
+      tabItem(tabName = "subhome", 
+              fluidRow(
+                column(4, actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down"))),
+              ),
+              fluidRow(
+                column(4, downloadButton('download_ingredient_json', 'Download Ingredients')),
+              ),
+              fluidRow(
+                column(4, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
+              )
+      ),
       tabItem(tabName = "Activitytab", 
               fluidRow(
                 valueBoxOutput("calories"),
@@ -122,7 +134,7 @@ ui <- dashboardPage(
       ),
       tabItem(tabName = "Settingstab", h1("welcome to settings"))
       
-    )
+    ) # tabItems
   ) # body
   
 )
@@ -131,23 +143,23 @@ ui <- dashboardPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  
+  ########## Global Var here
+  g_user_email <- reactiveVal("tranbaoson2005@gmail.com")
+  g_user_name <- reactiveVal("son tran")
+  # define a reactive value to track authentication state
+  g_authenticated <- reactiveVal(FALSE)
+  g_food_id <- reactiveVal(0)
+  g_measure_unit <- reactiveVal("")
+  g_quantity <- reactiveVal(0)
+  
+  
+  
   ########## SAVE RECIPE
-  user_email <- reactiveVal("")
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
   
-  # read the credentials file
-  json_str <- readLines("gg_auth.json", warn = FALSE)
-  creds <- fromJSON(json_str)
   
-  # set up authentication
-  options(googleAuthR.client_id = creds$client_id)
-  options(googleAuthR.client_secret = creds$client_secret)
-  options(googleAuthR.scopes.selected = creds$scopes)
-  options(googleAuthR.redirect = "http://localhost:1410")
-  
-  # define a reactive value to track authentication state
-  authenticated <- reactiveVal(FALSE)
   
   # handle button click
   observeEvent(input$save_recipe, {
@@ -162,70 +174,47 @@ server <- function(input, output, session) {
     print(recipe_data)
     
     # Check if user email exists or not
-    if (is.null(user_email()) || nchar(user_email()) == 0) {
+    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
       print("No user email!!!")
     }
     else {
       # Import the database module
       database <- import("db")
       print("=====save recipe")
-      print(list(user_email(), recipe_data))
-      database$save_recipe(user_email(), input$serving, recipe_data)
+      print(list(g_user_email(), recipe_data))
+      database$save_recipe(g_user_email(), input$serving, recipe_data)
       # Print all recipe of this user
-      recipes <- database$get_recipes(user_email())
+      recipes <- database$get_recipes(g_user_email())
       print("======print all recipes")
       dput(recipes)
+      
+      # Show confirmation message
+      showModal(modalDialog("Save Recipes successfully!", easyClose = TRUE))
+      delay(1000, removeModal())
     }
     
   })
   
-  # handle button click
-  observeEvent(input$login_with_google, {
-    # # Check if there is a valid token
-    # if (!googleAuthR::gar_check_existing_token()) {
-    #   # Refresh the token
-    #   googleAuthR::gar_auth()
-    # }
-    # else {
-    #   print("======token valid")
-    # }
-    googleAuthR::gar_auth()
-    authenticated(TRUE)
-    
-    
-  })
+  ##########LOGIN WITH GOOGLE
+  g_authenticated(TRUE)
   
   # check if user is authenticated
   observe({
-    if (authenticated()) {
-      
-      get_name_and_email <- function() {
-        f <- gar_api_generator(
-          "https://openidconnect.googleapis.com/v1/userinfo",
-          "GET",
-          data_parse_function = function(x) list(name = x$name, email = x$email),
-          checkTrailingSlash = FALSE
-        )
-        f()
-      }
-      user_info <- get_name_and_email()
-      user_email(user_info$email)
+    if (g_authenticated()) {
+
       print("email is")
-      print(user_email)
+      print(g_user_email)
       
-      shinyjs::disable("login_with_google")
-      # Change the text of the button to "Recipe Saved!" and disable it
-      updateActionButton(session, "login_with_google", label = user_email())
-      
+
       # Import the database module
       database <- import("db")
       
       # Get user data from db using email
-      user_info_db <- database$get_user_info(user_info$email)
+      user_info_db <- database$get_user_info(g_user_email())
       # New user
       if (is.null(user_info_db)) {
         print("New user! Save data to db")
-        database$save_user_info(user_info$name, user_info$email)
+        database$save_user_info(user_info$name, g_user_email())
       }
       # Existing user
       else {
@@ -237,8 +226,81 @@ server <- function(input, output, session) {
     
     
   })
+  ########## DOWNLOAD/UPLOAD Ingredients
+  # Download Ingredients as json file
+  output$download_ingredient_json <- downloadHandler(
+    filename = function() {
+      paste("my_data", ".json", sep = "")
+    },
+    content = function(file) {
+      jsonlite::write_json(ingredients_list(), file)
+    }
+  )
+
+  # Upload Ingredients as JSON file
+  observeEvent(input$upload_ingredient_json, {
+    # # Open file dialog to select JSON file
+    # file_path <- file.choose()
+    # # Read JSON data from file
+    # json_data <- readLines(file_path)
+    # # Convert JSON data to R object
+    # my_object <- jsonlite::fromJSON(json_data)
+    
+    
+    req(input$upload_ingredient_json)
+    my_object <- jsonlite::fromJSON(input$upload_ingredient_json$datapath)
+    # Do something with the json data
+    print(my_object)
+    
+    # Show confirmation message
+    showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
+    delay(1000, removeModal())
+    # Print loaded object
+    # print(my_object)
+    
+    for (i in 1:nrow(my_object)) {
+      # cat(paste0("Quantity: ", my_object$quantity[i], "\n"))
+      # cat(paste0("Units: ", my_object$units[i], "\n"))
+      # cat(paste0("Ingredient name: ", my_object$ingredient_name[i], "\n"))
+      # cat(paste0("Food ID: ", my_object$FoodID[i], "\n\n"))
+      
+      # prepare to import
+      g_food_id(as.numeric(my_object$FoodID[i]))
+      g_measure_unit(my_object$units[i])
+      g_quantity(as.numeric(my_object$quantity[i]))
+      
+      ing_df$df[nrow(ing_df$df) + 1,] <- c(g_quantity(),
+                                           g_measure_unit(),
+                                           my_object$ingredient_name[i],
+                                           g_food_id())
+      
+      # [1] "1"            " fritter "    "Corn fritter" "6"
+      # [1] "1"                                "ml "                              "Chinese dish, chow mein, chicken" "5" 
+      # [1] quantity        units           ingredient_name FoodID         
+      # <0 rows> (or 0-length row.names)
+      # [1] numeric               units                 description           ConversionFactorValue MeasureID             FoodID               
+      # <0 rows> (or 0-length row.names)
+      
+      # [1] "input measure:"
+      # # A tibble: 1 × 6
+      # numeric units description ConversionFactorValue MeasureID FoodID
+      # <dbl> <chr> <chr>                       <dbl>     <int>  <int>
+      #   1     100 ml    ""                          0.930       341      5
+      
+      
+      # get actual working ingredient dataframe for dplyr
+      input_measure <- measure_df()
+      input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == g_measure_unit(), ]
+      if(nrow(input_measure) > 1){
+        input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
+      }
+      isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
+      ingredients_list(ing_df$df)
+    }
+  })
   
-  
+
+
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
   ing_df$df <- data.frame("quantity" = numeric(), 
@@ -253,9 +315,21 @@ server <- function(input, output, session) {
                                "MeasureID" = numeric(),
                                "FoodID" = numeric(),
                                stringsAsFactors = F)
+  
+  # observe ingredient inputs
+  observeEvent(input$food_id, {
+    g_food_id(input$food_id)
+  })
+  observeEvent(input$measure_unit, {
+    g_measure_unit(input$measure_unit)
+  })
+  observeEvent(input$quantity, {
+    g_quantity(input$quantity)
+  })
+  
   # step 1 get singular ingredient
-  measure_df <- eventReactive(input$food_id,{
-    measure_df <- ca_food_name[ca_food_name$FoodID==input$food_id, "FoodID"] %>% 
+  measure_df <- eventReactive(g_food_id(),{
+    measure_df <- ca_food_name[ca_food_name$FoodID==g_food_id(), "FoodID"] %>% 
       left_join(ca_conversion_factor) %>% 
       left_join(ca_measure_name) %>% 
       select(numeric, units, description, ConversionFactorValue, MeasureID, FoodID) 
@@ -266,6 +340,7 @@ server <- function(input, output, session) {
   observe({
     units <- unique(paste(measure_df()$units, measure_df()$description))
     updateSelectInput(session, "measure_unit", "2. Measure Unit", choices = units)
+    
   })
   
   
@@ -283,6 +358,7 @@ server <- function(input, output, session) {
                                                  input$measure_unit, 
                                                  names(ca_food_choices[ca_food_choices == input$food_id]), 
                                                  as.numeric(input$food_id)))
+
     # get actual working ingredient dataframe for dplyr
     input_measure <- measure_df()
     input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
@@ -296,6 +372,8 @@ server <- function(input, output, session) {
     updateSelectInput(session, 'food_id', '1. Ingredient', choices = ca_food_choices)
     ingredients_list(ing_df$df)
   })
+  
+
   # main nutrition data frame
   nutrition_df <- reactive({
     measure_food_df <- ing_df$measure
@@ -371,7 +449,7 @@ server <- function(input, output, session) {
   })
   output$vitamin_plot <- renderPlotly({
     df_vit <- dv_df() %>% filter(Group == "vitamin")
-    req(input$quantity)
+    req(g_quantity())
     plot_vit <- ggplot(df_vit) + 
       geom_col(aes(x = Nutrient, y = pct_dv, fill = pct_dv)) +
       geom_hline(yintercept = 100) +
@@ -420,5 +498,7 @@ server <- function(input, output, session) {
 }
 
 # Run the application 
-shinyApp(ui = ui, server = server)
+# shinyApp(ui = ui, server = server)
+# Run the app interactively
+runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
