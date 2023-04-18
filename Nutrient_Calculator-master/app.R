@@ -89,13 +89,24 @@ ui <- dashboardPage(
       # ),
       tabItem(tabName = "subhome", 
               fluidRow(
-                column(4, actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down"))),
+                column(4, actionButton("save_recipe", "Save Recipe from Activity Page", icon = shiny::icon("cloud-arrow-up")))
+                
+              ),
+              fluidRow(
+                column(4, actionButton("load_recipe", "Load All Recipe from DB", icon = shiny::icon("cloud-arrow-down")))
+              ),
+              fluidRow(
+                box(title = "Your recipes",
+                    solidHeader = T,
+                    width = 12,
+                    collapsible = T,
+                    div(DT::DTOutput("recipe_table"), style = "font-size: 70%;"))
               ),
               fluidRow(
                 column(4, downloadButton('download_ingredient_json', 'Download Ingredients')),
               ),
               fluidRow(
-                column(4, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
+                column(8, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
               )
       ),
       tabItem(tabName = "Activitytab", 
@@ -152,7 +163,7 @@ server <- function(input, output, session) {
   g_food_id <- reactiveVal(0)
   g_measure_unit <- reactiveVal("")
   g_quantity <- reactiveVal(0)
-  
+  g_meal_data <- reactiveVal(list(list()))
   
   
   ########## SAVE RECIPE
@@ -166,15 +177,11 @@ server <- function(input, output, session) {
         title = "Enter meal name",
         textInput("meal_name", "Meal Name", value = ""),
         footer = tagList(
-          actionButton("cancel_save_recipe", "Cancel"),
+          modalButton("Cancel"),
           actionButton("submit_save_recipe", "Submit")
         )
       )
     )
-
-  })
-  observeEvent(input$cancel_save_recipe, {
-    removeModal()
   })
   observeEvent(input$submit_save_recipe, {
     # Handle the input value here
@@ -209,15 +216,111 @@ server <- function(input, output, session) {
     print("=====save recipe")
     print(list(g_user_email(), meal_name, input$serving, recipe_data))
     database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
-    # Print all recipe of this user
-    recipes <- database$get_recipes(g_user_email())
-    print("======print all recipes")
-    print(recipes)
+    
     
     # Show confirmation message
     showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
     delay(1000, removeModal())
   })
+  
+  
+  # testing
+  # data <- list(
+  #   list("1", "aaa", 15, "[{\"quantity\":\"5\",\"units\":\"ml \",\"ingredient_name\":\"Chinese dish, chow mein, chicken\",\"FoodID\":\"5\"}]"),
+  #   list("2", "nbbbb", 25, "[{\"quantity\":\"5\",\"units\":\"g \",\"ingredient_name\":\"Fried chicken, mashed potatoes and vegetables\",\"FoodID\":\"8\"}]")
+  # )
+  observeEvent(input$load_recipe, {
+    
+    # Import the database module
+    database <- import("db")
+
+    # Print all recipe of this user
+    recipes <- database$get_recipes(g_user_email())
+    print("======print all recipes")
+    print(recipes)
+    g_meal_data(recipes)
+    
+    #recipe_table
+
+    output$recipe_table <- renderDT({
+      # Define column names
+      names <- c("id", "name", "amount", "details")
+    
+      # Convert data to data.frame
+      data_df <- do.call(rbind, recipes)
+      colnames(data_df) <- names
+    
+      # Create the datatable
+      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+    })
+    
+  })
+
+  observeEvent(input$recipe_table_rows_selected, {
+    selected_row <- isolate(input$recipe_table_rows_selected)
+    if (length(selected_row) > 0) {
+      row_data <- g_meal_data()[[selected_row]]
+      showModal(modalDialog(
+        title = "Mofify Meal",
+        disabled(textInput("id_input", label = "ID:", value = row_data[[1]])),
+        textInput("name_input", label = "Name:", value = row_data[[2]]),
+        textInput("amount_input", label = "Amount:", value = row_data[[3]]),
+        disabled(textInput("details_input", label = "Details: (not implemented yet)", value = row_data[[4]])),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton("save_meal", "Save")
+        ),
+        easyClose = TRUE
+      ))
+    }
+  })
+  observeEvent(input$save_meal, {
+    id_value <- as.numeric(input$id_input)
+    name_value <- input$name_input
+    amount_value <- as.numeric(input$amount_input)
+    details_value <- input$details_input
+    
+    print("=========modified meal data")
+    print(list(id_value, name_value, amount_value, details_value))
+    
+    selected_row <- isolate(input$recipe_table_rows_selected)
+    if (length(selected_row) > 0) {
+      data <- g_meal_data()
+      data[[selected_row]][[1]] <- id_value
+      data[[selected_row]][[2]] <- name_value
+      data[[selected_row]][[3]] <- amount_value
+      data[[selected_row]][[4]] <- details_value
+      
+      # Update the table
+      output$recipe_table <- renderDT({
+        # Define column names
+        names <- c("id", "name", "amount", "details")
+        
+        # Convert data to data.frame
+        data_df <- do.call(rbind, data)
+        colnames(data_df) <- names
+        
+        # Create the datatable
+        datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+      })
+      
+      # save to db
+      # Import the database module
+      database <- import("db")
+
+      # Print all recipe of this user
+      database$update_recipe(id_value, name_value, amount_value, details_value)
+      
+      
+      g_meal_data(data)
+    }
+    
+    # Close the modal dialog
+    removeModal()
+  })
+  
+  
+  
   
   ##########LOGIN WITH GOOGLE
   g_authenticated(TRUE)

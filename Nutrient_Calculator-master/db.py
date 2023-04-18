@@ -52,6 +52,19 @@ def save_recipe(email, meal_name, serving_amounts, details):
     finally:
         conn.close()
 
+def update_recipe(recipe_id, meal_name, serving_amounts, details):
+    conn = create_connection()
+    try:
+        # Insert new recipe
+        conn.execute("UPDATE recipes SET name = ?, serving_amounts = ?, details = ? WHERE id = ?", (meal_name, serving_amounts, details, recipe_id))
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+
+    
 # Retrieve all name and email data from the database
 def get_all_data():
     conn = create_connection()
