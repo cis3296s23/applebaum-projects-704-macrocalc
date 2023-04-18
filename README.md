@@ -25,7 +25,7 @@ MacroCalc will function as a nutrition planning web application. It will allow u
 
 ## Required Resources
 
-To complete this project, I will need to find a large database of ingredients and their nutrient values I can use as a base data source in addition to personal ingredients that a user may add. These are publicly available on government funded resource pages. In terms of software resources, I will just need RStudio to make use of the R programming language and an installation of the Shiny package. No specific hardware resource will be needed other than a device that can utilize RStudio.
+To complete this project, we will need to find a large database of ingredients and their nutrient values I can use as a base data source in addition to personal ingredients that a user may add. These are publicly available on government funded resource pages. In terms of software resources, I will just need RStudio to make use of the R programming language and an installation of the Shiny package. No specific hardware resource will be needed other than a device that can utilize RStudio.
 
 This is similar to paid closed-source nutrition tools that already exist such as Noom or MyFitnessPal. Unlike these tools however, MacroCalc will have a focus on offline usability, quantity customization, and simple design to help users have greater freedom and accessibility in achieving their personal nutrition goals.
 
