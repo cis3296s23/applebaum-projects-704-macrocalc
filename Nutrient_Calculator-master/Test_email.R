@@ -1,11 +1,11 @@
 get_user_info <- function(authenticated, gar_api_generator, user_email, import) {
-  user_info <- NULL
+  user_info <- list()
   
   if (authenticated()) {
     tryCatch({
       user_info <- gar_api_generator() %>% data_parse_function()
       user_email(user_info$email)
-      database <- import("db")
+      database <- import("database")
       user_info_db <- database$get_user_info(user_info$email)
       
       if (is.null(user_info_db)) {
