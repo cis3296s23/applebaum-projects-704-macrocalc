@@ -9,6 +9,10 @@ library(jsonlite)
 library(shinyjs)
 library(shinyFiles)
 
+rsconnect::setAccountInfo(name='macrocalc',
+                          token='154D97C14C26B3416F6B1C64CFE8EB01',
+                          secret='A3XVc3aLgcEk3vl8e8mm5VcgMzAnJcwbXtyc4ULS')
+
 # load files from Canada Nutrient File
 nutr_files <- list.files(pattern = "*.rda")
 lapply(nutr_files,load,.GlobalEnv)
@@ -56,6 +60,11 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
+    tags$head(
+      HTML('<script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://unpkg.com/jwt-decode/build/jwt-decode.js"></script>'),
+      includeScript("signin.js"),
+      useShinyjs()
+    ),
     sidebarMenu(
       menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
       menuSubItem("opt. home subtab", tabName = "subhome"),
@@ -63,6 +72,10 @@ ui <- dashboardPage(
       menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
       tags$p("Notice: some info note")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
+    ),
+    div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
+        "data-ux_mode"="popup", "data-auto_prompt"="true", "data-auto_select"="true"),
+    div(id="g_id_signin", class="g_id_signin", "data-type"="standard", "data-shape"="rectangular", "data-theme"="outline", "data-text"="signin_with", "data-size"="large", "data-logo_alignment"="left"
     ),
     useShinyjs()
     
@@ -323,14 +336,18 @@ server <- function(input, output, session) {
   
   
   ##########LOGIN WITH GOOGLE
-  g_authenticated(TRUE)
+  observeEvent(input$g.email, {
+    g_user_email(input$g.email)
+    g_user_name(input$g.name)
+    g_authenticated(TRUE)
+  })
   
   # check if user is authenticated
   observe({
     if (g_authenticated()) {
 
       print("email is")
-      print(g_user_email)
+      print(list(g_user_email(), g_user_name()))
       
 
       # Import the database module
@@ -625,7 +642,7 @@ server <- function(input, output, session) {
 }
 
 # Run the application 
-# shinyApp(ui = ui, server = server)
+shinyApp(ui = ui, server = server)
 # Run the app interactively
-runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
+# runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
