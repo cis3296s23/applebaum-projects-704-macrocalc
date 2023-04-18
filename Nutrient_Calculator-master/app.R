@@ -240,8 +240,6 @@ server <- function(input, output, session) {
     print(recipes)
     g_meal_data(recipes)
     
-    #recipe_table
-
     output$recipe_table <- renderDT({
       # Define column names
       names <- c("id", "name", "amount", "details")
@@ -265,13 +263,25 @@ server <- function(input, output, session) {
         disabled(textInput("id_input", label = "ID:", value = row_data[[1]])),
         textInput("name_input", label = "Name:", value = row_data[[2]]),
         textInput("amount_input", label = "Amount:", value = row_data[[3]]),
-        disabled(textInput("details_input", label = "Details: (not implemented yet)", value = row_data[[4]])),
+        hidden(textInput("details_input", label = "Details Json Data:", value = row_data[[4]])),
+        fluidRow(
+          box(title = "Details",
+              solidHeader = T,
+              width = 12,
+              collapsible = T,
+              div(DT::DTOutput("recipe_table_details"), style = "font-size: 70%;"))
+        ),
         footer = tagList(
           modalButton("Cancel"),
           actionButton("save_meal", "Save")
         ),
         easyClose = TRUE
       ))
+      
+      # Display details data in table
+      output$recipe_table_details <- renderDataTable({
+        datatable(as.data.frame(fromJSON(row_data[[4]])), editable = FALSE, options = list(pageLength = 5), selection = "single")
+      })
     }
   })
   observeEvent(input$save_meal, {
