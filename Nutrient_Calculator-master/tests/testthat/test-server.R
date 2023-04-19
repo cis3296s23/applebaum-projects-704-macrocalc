@@ -1,6 +1,6 @@
 source("/Users/gevork/Documents/GitHub/MacroCalc704/Nutrient_Calculator-master/app.R", chdir = TRUE)
 
-#library(testthat)
+library(testthat)
 
 test_that("global variables test", { server(NULL, NULL, FALSE)
   
