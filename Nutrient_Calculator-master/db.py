@@ -18,6 +18,7 @@ conn.execute('''
 CREATE TABLE IF NOT EXISTS recipes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL,
+    name TEXT DEFAULT 'My Meal',
     serving_amounts NUMERIC,
     details TEXT
 );
@@ -39,11 +40,11 @@ def save_user_info(name, email):
     finally:
         conn.close()
         
-def save_recipe(email, serving_amounts, details):
+def save_recipe(email, meal_name, serving_amounts, details):
     conn = create_connection()
     try:
         # Insert new recipe
-        conn.execute('INSERT INTO recipes (email, serving_amounts, details) VALUES (?, ?, ?)', (email, serving_amounts, details))
+        conn.execute('INSERT INTO recipes (email, name, serving_amounts, details) VALUES (?, ?, ?, ?)', (email, meal_name, serving_amounts, details))
         conn.commit()
     except sqlite3.Error as e:
         # Handle any database errors that may occur
@@ -51,6 +52,31 @@ def save_recipe(email, serving_amounts, details):
     finally:
         conn.close()
 
+def update_recipe(recipe_id, meal_name, serving_amounts, details):
+    conn = create_connection()
+    try:
+        # Update recipe
+        conn.execute("UPDATE recipes SET name = ?, serving_amounts = ?, details = ? WHERE id = ?", (meal_name, serving_amounts, details, recipe_id))
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+
+def delete_recipe(recipe_id):
+    conn = create_connection()
+    try:
+        # Delete recipe
+        conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+    
 # Retrieve all name and email data from the database
 def get_all_data():
     conn = create_connection()
@@ -71,10 +97,11 @@ def get_user_info(email):
 def get_recipes(email):
     conn = create_connection()
     # retrieve all recipes
-    cursor = conn.execute('SELECT id, email, details FROM recipes WHERE email = ?', (email,))
+    cursor = conn.execute('SELECT id, name, serving_amounts, details FROM recipes WHERE email = ?', (email,))
     recipes = cursor.fetchall()
     conn.close()
     return recipes
+
 
 # Close the database connection
 def close_connection():
