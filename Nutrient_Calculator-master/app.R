@@ -9,6 +9,10 @@ library(jsonlite)
 library(shinyjs)
 library(shinyFiles)
 
+rsconnect::setAccountInfo(name='macrocalc',
+                          token='154D97C14C26B3416F6B1C64CFE8EB01',
+                          secret='A3XVc3aLgcEk3vl8e8mm5VcgMzAnJcwbXtyc4ULS')
+
 # load files from Canada Nutrient File
 nutr_files <- list.files(pattern = "*.rda")
 lapply(nutr_files,load,.GlobalEnv)
@@ -56,6 +60,11 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
+    tags$head(
+      HTML('<script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://unpkg.com/jwt-decode/build/jwt-decode.js"></script>'),
+      includeScript("signin.js"),
+      useShinyjs()
+    ),
     sidebarMenu(
       menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
       menuSubItem("opt. home subtab", tabName = "subhome"),
@@ -63,6 +72,10 @@ ui <- dashboardPage(
       menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
       tags$p("Notice: some info note")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
+    ),
+    div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
+        "data-ux_mode"="popup", "data-auto_prompt"="true", "data-auto_select"="true"),
+    div(id="g_id_signin", class="g_id_signin", "data-type"="standard", "data-shape"="rectangular", "data-theme"="outline", "data-text"="signin_with", "data-size"="large", "data-logo_alignment"="left"
     ),
     useShinyjs()
     
@@ -367,7 +380,7 @@ server <- function(input, output, session) {
     
     # Import the database module
     database <- import("db")
-
+    
     # Print all recipe of this user
     recipes <- database$get_recipes(g_user_email())
     print("======print all recipes")
@@ -377,11 +390,11 @@ server <- function(input, output, session) {
     output$recipe_table <- renderDT({
       # Define column names
       names <- c("ID", "Meal Name", "Amount", "Details")
-    
+
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
       colnames(data_df) <- names
-    
+      
       # Create the datatable
       datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
     })
@@ -389,7 +402,7 @@ server <- function(input, output, session) {
     g_all_recipe_rendered(TRUE)
     
   })
-
+  
   observeEvent(input$recipe_table_rows_selected, {
     selected_row <- isolate(input$recipe_table_rows_selected)
     if (length(selected_row) > 0) {
@@ -514,16 +527,20 @@ server <- function(input, output, session) {
   
   
   ##########LOGIN WITH GOOGLE
-  g_authenticated(TRUE)
+  observeEvent(input$g.email, {
+    g_user_email(input$g.email)
+    g_user_name(input$g.name)
+    g_authenticated(TRUE)
+  })
   
   # check if user is authenticated
   observe({
     if (g_authenticated()) {
-
+      
       print("email is")
       print(g_user_email)
       
-
+      
       # Import the database module
       database <- import("db")
       
@@ -622,7 +639,7 @@ server <- function(input, output, session) {
                                                  input$measure_unit, 
                                                  names(ca_food_choices[ca_food_choices == input$food_id]), 
                                                  as.numeric(input$food_id)))
-
+    
     # get actual working ingredient dataframe for dplyr
     input_measure <- measure_df()
     input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
@@ -637,7 +654,7 @@ server <- function(input, output, session) {
     ingredients_list(ing_df$df)
   })
   
-
+  
   # main nutrition data frame
   nutrition_df <- reactive({
     measure_food_df <- ing_df$measure
@@ -761,8 +778,14 @@ server <- function(input, output, session) {
   output$serving <- renderText(paste("for 1 serving (", input$serving, "servings in recipe)"))
 }
 
-# Run the application 
+# # For release
+# # Run the application 
 # shinyApp(ui = ui, server = server)
-# Run the app interactively
-runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
+# # runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
+
+# For testing gg sign-in on localhost or RStudio
+# gg sign-in didn't work with 127.0.0.1, open a browser tab or change it to localhost
+# http://localhost:7147/
+# shinyApp(ui = ui, server = server)
+runApp(shinyApp(ui = ui, server = server), port=7147, launch.browser = TRUE) # for testing with gg sign in
