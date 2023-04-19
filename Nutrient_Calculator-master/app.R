@@ -170,8 +170,73 @@ server <- function(input, output, session) {
   g_measure_unit <- reactiveVal("")
   g_quantity <- reactiveVal(0)
   g_meal_data <- reactiveVal(list(list()))
-  
   g_edit_meal_id <- reactiveVal(0)
+  g_all_recipe_rendered <- reactiveVal(FALSE)
+  
+  ########## define function here
+  clear_ing_df <- function() {
+    ing_df$df <- data.frame("quantity" = numeric(), 
+                            "units" = character(), 
+                            "ingredient_name" = character(), 
+                            "FoodID" = numeric(), 
+                            stringsAsFactors = F)
+    ing_df$measure <- data.frame("numeric" = numeric(),
+                                 "units" = character(),
+                                 "description" = character(),
+                                 "ConversionFactorValue" = numeric(),
+                                 "MeasureID" = numeric(),
+                                 "FoodID" = numeric(),
+                                 stringsAsFactors = F)
+    return(ing_df)
+  }
+  
+  load_ingredients_data <- function(my_object) {
+    # clear existing data before upload ingredient
+    clear_ing_df()
+    ingredients_list(ing_df$df)
+    
+    for (i in 1:nrow(my_object)) {
+      # cat(paste0("Quantity: ", my_object$quantity[i], "\n"))
+      # cat(paste0("Units: ", my_object$units[i], "\n"))
+      # cat(paste0("Ingredient name: ", my_object$ingredient_name[i], "\n"))
+      # cat(paste0("Food ID: ", my_object$FoodID[i], "\n\n"))
+      
+      # prepare to import
+      g_food_id(as.numeric(my_object$FoodID[i]))
+      g_measure_unit(my_object$units[i])
+      g_quantity(as.numeric(my_object$quantity[i]))
+      
+      ing_df$df[nrow(ing_df$df) + 1,] <- c(g_quantity(),
+                                           g_measure_unit(),
+                                           my_object$ingredient_name[i],
+                                           g_food_id())
+      
+      # [1] "1"            " fritter "    "Corn fritter" "6"
+      # [1] "1"                                "ml "                              "Chinese dish, chow mein, chicken" "5" 
+      # [1] quantity        units           ingredient_name FoodID         
+      # <0 rows> (or 0-length row.names)
+      # [1] numeric               units                 description           ConversionFactorValue MeasureID             FoodID               
+      # <0 rows> (or 0-length row.names)
+      
+      # [1] "input measure:"
+      # # A tibble: 1 × 6
+      # numeric units description ConversionFactorValue MeasureID FoodID
+      # <dbl> <chr> <chr>                       <dbl>     <int>  <int>
+      #   1     100 ml    ""                          0.930       341      5
+      
+      
+      # get actual working ingredient dataframe for dplyr
+      input_measure <- measure_df()
+      input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == g_measure_unit(), ]
+      if(nrow(input_measure) > 1){
+        input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
+      }
+      isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
+    }
+    ingredients_list(ing_df$df) 
+  }
+  
+  
 
   ########## SAVE RECIPE
   # Define a reactive variable to store the list of ingredients
@@ -194,7 +259,6 @@ server <- function(input, output, session) {
     # Handle the input value here
     meal_name <- input$p_meal_name
     print(paste("Save meal name: ", meal_name))
-    
     
     time_delay <- 3000
     if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
@@ -222,12 +286,27 @@ server <- function(input, output, session) {
     database <- import("db")
     print("=====save recipe")
     print(list(g_user_email(), meal_name, input$serving, recipe_data))
-    database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
     
-    
+    # check meal id for create new or update
+    if (g_edit_meal_id() > 0) {
+      database$update_recipe(g_edit_meal_id(), meal_name, input$serving, recipe_data)
+    }
+    # create new
+    else {
+      database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
+    }
+
     # Show confirmation message
     showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
     delay(1000, removeModal())
+    
+    if(g_all_recipe_rendered()){
+      click("load_recipe")
+    }
+    
+    # update new meal name if changed
+    updateTextInput(session, "meal_name", value = meal_name)
+    
   })
   
   
@@ -259,36 +338,46 @@ server <- function(input, output, session) {
       datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
     })
     
+    g_all_recipe_rendered(TRUE)
+    
   })
 
   observeEvent(input$recipe_table_rows_selected, {
     selected_row <- isolate(input$recipe_table_rows_selected)
     if (length(selected_row) > 0) {
       row_data <- g_meal_data()[[selected_row]]
-      showModal(modalDialog(
-        title = "Mofify Meal",
-        disabled(textInput("id_input", label = "ID:", value = row_data[[1]])),
-        textInput("name_input", label = "Name:", value = row_data[[2]]),
-        textInput("amount_input", label = "Amount:", value = row_data[[3]]),
-        hidden(textInput("details_input", label = "Details Json Data:", value = row_data[[4]])),
-        fluidRow(
-          box(title = "Details",
-              solidHeader = T,
-              width = 12,
-              collapsible = T,
-              div(DT::DTOutput("recipe_table_details"), style = "font-size: 70%;"))
-        ),
-        footer = tagList(
-          modalButton("Cancel"),
-          actionButton("save_meal", "Save")
-        ),
-        easyClose = TRUE
-      ))
       
-      # Display details data in table
-      output$recipe_table_details <- renderDataTable({
-        datatable(as.data.frame(fromJSON(row_data[[4]])), editable = FALSE, options = list(pageLength = 5), selection = "single")
-      })
+      # load this data to the table next to save recipe to leverage the existing feature for editing
+      g_edit_meal_id(as.numeric(row_data[[1]]))
+      updateTextInput(session, "meal_name", value = row_data[[2]])
+      updateNumericInput(session, "serving", value = as.numeric(row_data[[3]]))
+      load_ingredients_data(fromJSON(row_data[[4]]))
+      
+      
+      # showModal(modalDialog(
+      #   title = "Mofify Meal",
+      #   disabled(textInput("id_input", label = "ID:", value = row_data[[1]])),
+      #   textInput("name_input", label = "Name:", value = row_data[[2]]),
+      #   textInput("amount_input", label = "Amount:", value = row_data[[3]]),
+      #   hidden(textInput("details_input", label = "Details Json Data:", value = row_data[[4]])),
+      #   fluidRow(
+      #     box(title = "Details",
+      #         solidHeader = T,
+      #         width = 12,
+      #         collapsible = T,
+      #         div(DT::DTOutput("recipe_table_details"), style = "font-size: 70%;"))
+      #   ),
+      #   footer = tagList(
+      #     modalButton("Cancel"),
+      #     actionButton("save_meal", "Save")
+      #   ),
+      #   easyClose = TRUE
+      # ))
+      # 
+      # # Display details data in table
+      # output$recipe_table_details <- renderDataTable({
+      #   datatable(as.data.frame(fromJSON(row_data[[4]])), editable = FALSE, options = list(pageLength = 5), selection = "single")
+      # })
     }
   })
   observeEvent(input$save_meal, {
@@ -325,7 +414,7 @@ server <- function(input, output, session) {
       # Import the database module
       database <- import("db")
 
-      # Print all recipe of this user
+      # Update recipe
       database$update_recipe(id_value, name_value, amount_value, details_value)
       
       
@@ -417,17 +506,13 @@ server <- function(input, output, session) {
       jsonlite::write_json(ingredients_list(), file)
     }
   )
+  
+  
+  
+  
 
   # Upload Ingredients as JSON file
   observeEvent(input$upload_ingredient_json, {
-    # # Open file dialog to select JSON file
-    # file_path <- file.choose()
-    # # Read JSON data from file
-    # json_data <- readLines(file_path)
-    # # Convert JSON data to R object
-    # my_object <- jsonlite::fromJSON(json_data)
-    
-    
     req(input$upload_ingredient_json)
     my_object <- jsonlite::fromJSON(input$upload_ingredient_json$datapath)
     # Do something with the json data
@@ -436,67 +521,22 @@ server <- function(input, output, session) {
     # Show confirmation message
     showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
     delay(1000, removeModal())
-    # Print loaded object
-    # print(my_object)
     
-    for (i in 1:nrow(my_object)) {
-      # cat(paste0("Quantity: ", my_object$quantity[i], "\n"))
-      # cat(paste0("Units: ", my_object$units[i], "\n"))
-      # cat(paste0("Ingredient name: ", my_object$ingredient_name[i], "\n"))
-      # cat(paste0("Food ID: ", my_object$FoodID[i], "\n\n"))
-      
-      # prepare to import
-      g_food_id(as.numeric(my_object$FoodID[i]))
-      g_measure_unit(my_object$units[i])
-      g_quantity(as.numeric(my_object$quantity[i]))
-      
-      ing_df$df[nrow(ing_df$df) + 1,] <- c(g_quantity(),
-                                           g_measure_unit(),
-                                           my_object$ingredient_name[i],
-                                           g_food_id())
-      
-      # [1] "1"            " fritter "    "Corn fritter" "6"
-      # [1] "1"                                "ml "                              "Chinese dish, chow mein, chicken" "5" 
-      # [1] quantity        units           ingredient_name FoodID         
-      # <0 rows> (or 0-length row.names)
-      # [1] numeric               units                 description           ConversionFactorValue MeasureID             FoodID               
-      # <0 rows> (or 0-length row.names)
-      
-      # [1] "input measure:"
-      # # A tibble: 1 × 6
-      # numeric units description ConversionFactorValue MeasureID FoodID
-      # <dbl> <chr> <chr>                       <dbl>     <int>  <int>
-      #   1     100 ml    ""                          0.930       341      5
-      
-      
-      # get actual working ingredient dataframe for dplyr
-      input_measure <- measure_df()
-      input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == g_measure_unit(), ]
-      if(nrow(input_measure) > 1){
-        input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
-      }
-      isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
-      ingredients_list(ing_df$df)  
+    # clear data
+    g_edit_meal_id(0)
+    updateTextInput(session, "meal_name", value = "")
+    updateNumericInput(session, "serving", value = 1)
+    
+    if(g_all_recipe_rendered()){
+      click("load_recipe")
     }
     
+    load_ingredients_data(my_object)
   })
   
-
-
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
-  ing_df$df <- data.frame("quantity" = numeric(), 
-                          "units" = character(), 
-                          "ingredient_name" = character(), 
-                          "FoodID" = numeric(), 
-                          stringsAsFactors = F)
-  ing_df$measure <- data.frame("numeric" = numeric(),
-                               "units" = character(),
-                               "description" = character(),
-                               "ConversionFactorValue" = numeric(),
-                               "MeasureID" = numeric(),
-                               "FoodID" = numeric(),
-                               stringsAsFactors = F)
+  clear_ing_df()
   
   # observe ingredient inputs
   observeEvent(input$food_id, {
