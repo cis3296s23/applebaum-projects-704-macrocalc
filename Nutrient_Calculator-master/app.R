@@ -137,8 +137,8 @@ ui <- dashboardPage(
                     width = 12,
                     collapsible = T,
                     div(actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-up")),
-                        hidden(actionButton("log_recipe", "Save to Log", icon = shiny::icon("save"))),
                         hidden(actionButton("delete_recipe", "Delete Recipe", icon = shiny::icon("trash"))),
+                        hidden(actionButton("delete_recipe", "Save to log", icon = shiny::icon("save"))),
                         style = "font-size: 70%; margin: 5px;"
                     ),
                     div(textOutput("recipe_table_edit_id"), style = "font-size: 70%; margin: 5px;"),
@@ -668,14 +668,14 @@ server <- function(input, output, session) {
   })
   
   
-  observeEvent(input$add, { 
+  observeEvent(input$add, {
       isolate(ing_df$df[nrow(ing_df$df) + 1, ] <- c(
         input$quantity,
         input$measure_unit,
         names(ca_food_choices[ca_food_choices == input$food_id]),
-        as.numeric(input$food_id),
+        as.numeric(input$food_id)
         
-        ##give users a popup if they dont add an ingredient and restart the script (notworking yet)
+        ##give users a popup if they dont add an ingredient and restart the script
         # # cat("Value of food_id is:", input$food_id, "yoyo\n")
         # if(input$food_id == '') {
         #   script_path <- parent.frame()$ofile
@@ -684,7 +684,6 @@ server <- function(input, output, session) {
         #   print(script_path)
         #   system(paste("Rscript", script_path))
         # }
-        
       ))
       
       # get actual working ingredient dataframe for dplyr
