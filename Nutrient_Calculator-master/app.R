@@ -58,7 +58,8 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Nutrition Calculator"),
+  dashboardHeader(title = "MacroCalc"),
+  skin = "purple",
   dashboardSidebar(
     tags$head(
       HTML('<script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://unpkg.com/jwt-decode/build/jwt-decode.js"></script>'),
@@ -66,11 +67,12 @@ ui <- dashboardPage(
       useShinyjs()
     ),
     sidebarMenu(
-      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
-      menuSubItem("opt. home subtab", tabName = "subhome"),
+      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard"),
+               menuSubItem("Ingredient Selection", tabName = "sub1"),
+               menuSubItem("Recipes", tabName = "subhome")
+               ),
       menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
-      menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
-      tags$p("Notice: some info note")
+      tags$p("Notice: Consult your physician.")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
     div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
@@ -82,7 +84,7 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     tabItems(
-      tabItem(tabName = "Hometab", 
+      tabItem(tabName = "sub1", 
         selectizeInput(
           'food_id', '1. Ingredient', choices = ca_food_choices,
           options = list(
@@ -96,7 +98,31 @@ ui <- dashboardPage(
         actionButton("add", "Add ingredient"),
         actionButton("remove", "Remove ingredient"),
         numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-        textInput("meal_name", "Meal Name:"),
+        # textInput("meal_name", "Meal Name:"),
+        fluidRow(
+          box(title = "Ingredients",
+              solidHeader = T,
+              width = 4,
+              collapsible = T,
+              div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+          box(title = "Nutrition Table",
+              solidHeader = T,
+              width = 4, 
+              collapsible = T,
+              collapsed = F,
+              tags$p(textOutput("serving", inline = T)),
+              div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+        )
+        # ,
+        # fluidRow(
+        #   box(title = "Nutrition Table",
+        #       solidHeader = T,
+        #       width = 4, 
+        #       collapsible = T,
+        #       collapsed = F,
+        #       tags$p(textOutput("serving", inline = T)),
+        #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+        #   )
       ),
       
       # tabItem(tabName = "subhome", 
@@ -111,6 +137,7 @@ ui <- dashboardPage(
                     width = 12,
                     collapsible = T,
                     div(actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-up")),
+                        hidden(actionButton("log_recipe", "Save to Log", icon = shiny::icon("save"))),
                         hidden(actionButton("delete_recipe", "Delete Recipe", icon = shiny::icon("trash"))),
                         style = "font-size: 70%; margin: 5px;"
                     ),
@@ -131,30 +158,37 @@ ui <- dashboardPage(
                 )
               )
       ),
-      tabItem(tabName = "Activitytab", 
+      tabItem(tabName = "Activitytab",
+              fluidRow(
+                box(title = "Your Log",
+                    solidHeader = T,
+                    width = 15,
+                    collapsible = T,
+                )
+              ),
               fluidRow(
                 valueBoxOutput("calories"),
                 valueBoxOutput("over_nutrient"),
                 valueBoxOutput("rich_nutrient")
               ),
               fluidRow(
-                box(title = "Ingredients",
-                    solidHeader = T,
-                    width = 4,
-                    collapsible = T,
-                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                # box(title = "Ingredients",
+                #     solidHeader = T,
+                #     width = 4,
+                #     collapsible = T,
+                #     div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
                 box(title = "Macronutrients", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("macro_plot"))
               ), # row
               fluidRow(
-                box(title = "Nutrition Table",
-                    solidHeader = T,
-                    width = 4, 
-                    collapsible = T,
-                    collapsed = F,
-                    tags$p(textOutput("serving", inline = T)),
-                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
+                # box(title = "Nutrition Table",
+                #     solidHeader = T,
+                #     width = 4, 
+                #     collapsible = T,
+                #     collapsed = F,
+                #     tags$p(textOutput("serving", inline = T)),
+                #     div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
                 box(title = "Minerals", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("mineral_plot"))
@@ -164,9 +198,7 @@ ui <- dashboardPage(
                     width = 12, collapsible = T,
                     plotlyOutput("vitamin_plot"))
               ) # row
-      ),
-      tabItem(tabName = "Settingstab", h1("welcome to settings"))
-      
+      )
     ) # tabItems
   ) # body
   
@@ -601,6 +633,7 @@ server <- function(input, output, session) {
   observeEvent(input$food_id, {
     g_food_id(input$food_id)
   })
+  
   observeEvent(input$measure_unit, {
     g_measure_unit(input$measure_unit)
   })
@@ -628,25 +661,43 @@ server <- function(input, output, session) {
   
   # step 3 update the ingredient dataframe
   observeEvent(input$remove, {
-    isolate(ing_df$df<-ing_df$df[-(nrow(ing_df$df)),])
-    isolate(ing_df$measure <- ing_df$measure[-nrow(ing_df$measure),])
+    isolate(ing_df$df <- ing_df$df[-(nrow(ing_df$df)), ])
+    isolate(ing_df$measure <-
+              ing_df$measure[-nrow(ing_df$measure), ])
     ingredients_list(ing_df$df)
   })
   
   
-  observeEvent(input$add, {
-    isolate(ing_df$df[nrow(ing_df$df) + 1,] <- c(input$quantity,
-                                                 input$measure_unit, 
-                                                 names(ca_food_choices[ca_food_choices == input$food_id]), 
-                                                 as.numeric(input$food_id)))
-    
-    # get actual working ingredient dataframe for dplyr
-    input_measure <- measure_df()
-    input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
-    if(nrow(input_measure) > 1){
-      input_measure <- input_measure[which(abs(input_measure$numeric-input$quantity)==min(abs(input_measure$numeric-input$quantity))),]
-    }
-    isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
+  observeEvent(input$add, { 
+      isolate(ing_df$df[nrow(ing_df$df) + 1, ] <- c(
+        input$quantity,
+        input$measure_unit,
+        names(ca_food_choices[ca_food_choices == input$food_id]),
+        as.numeric(input$food_id),
+        
+        ##give users a popup if they dont add an ingredient and restart the script (notworking yet)
+        # # cat("Value of food_id is:", input$food_id, "yoyo\n")
+        # if(input$food_id == '') {
+        #   script_path <- parent.frame()$ofile
+        #   
+        #   print("please select a food")
+        #   print(script_path)
+        #   system(paste("Rscript", script_path))
+        # }
+        
+      ))
+      
+      # get actual working ingredient dataframe for dplyr
+      input_measure <- measure_df()
+      input_measure <-
+        input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit,]
+      if (nrow(input_measure) > 1) {
+        input_measure <-
+          input_measure[which(abs(input_measure$numeric - input$quantity) == min(abs(
+            input_measure$numeric - input$quantity
+          ))), ]
+      }
+      isolate(ing_df$measure[nrow(ing_df$measure) + 1,] <- input_measure)
     # update choices
     updateNumericInput(session, 'quantity', '3. Quantity', 1)
     updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
