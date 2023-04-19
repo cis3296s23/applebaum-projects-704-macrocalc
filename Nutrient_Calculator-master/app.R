@@ -66,11 +66,12 @@ ui <- dashboardPage(
       useShinyjs()
     ),
     sidebarMenu(
-      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
-      menuSubItem("opt. home subtab", tabName = "subhome"),
+      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard"),
+               menuSubItem("Ingredient Selection", tabName = "sub1"),
+               menuSubItem("Recipes", tabName = "subhome")
+               ),
       menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
-      menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
-      tags$p("Notice: some info note")
+      tags$p("Notice: Consult your physician")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
     div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
@@ -82,7 +83,7 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     tabItems(
-      tabItem(tabName = "Hometab", 
+      tabItem(tabName = "sub1", 
         selectizeInput(
           'food_id', '1. Ingredient', choices = ca_food_choices,
           options = list(
@@ -96,7 +97,31 @@ ui <- dashboardPage(
         actionButton("add", "Add ingredient"),
         actionButton("remove", "Remove ingredient"),
         numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-        textInput("meal_name", "Meal Name:"),
+        # textInput("meal_name", "Meal Name:"),
+        fluidRow(
+          box(title = "Ingredients",
+              solidHeader = T,
+              width = 4,
+              collapsible = T,
+              div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+          box(title = "Nutrition Table",
+              solidHeader = T,
+              width = 4, 
+              collapsible = T,
+              collapsed = F,
+              tags$p(textOutput("serving", inline = T)),
+              div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+        )
+        # ,
+        # fluidRow(
+        #   box(title = "Nutrition Table",
+        #       solidHeader = T,
+        #       width = 4, 
+        #       collapsible = T,
+        #       collapsed = F,
+        #       tags$p(textOutput("serving", inline = T)),
+        #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+        #   )
       ),
       
       # tabItem(tabName = "subhome", 
@@ -138,23 +163,23 @@ ui <- dashboardPage(
                 valueBoxOutput("rich_nutrient")
               ),
               fluidRow(
-                box(title = "Ingredients",
-                    solidHeader = T,
-                    width = 4,
-                    collapsible = T,
-                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                # box(title = "Ingredients",
+                #     solidHeader = T,
+                #     width = 4,
+                #     collapsible = T,
+                #     div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
                 box(title = "Macronutrients", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("macro_plot"))
               ), # row
               fluidRow(
-                box(title = "Nutrition Table",
-                    solidHeader = T,
-                    width = 4, 
-                    collapsible = T,
-                    collapsed = F,
-                    tags$p(textOutput("serving", inline = T)),
-                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
+                # box(title = "Nutrition Table",
+                #     solidHeader = T,
+                #     width = 4, 
+                #     collapsible = T,
+                #     collapsed = F,
+                #     tags$p(textOutput("serving", inline = T)),
+                #     div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
                 box(title = "Minerals", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("mineral_plot"))
@@ -164,9 +189,7 @@ ui <- dashboardPage(
                     width = 12, collapsible = T,
                     plotlyOutput("vitamin_plot"))
               ) # row
-      ),
-      tabItem(tabName = "Settingstab", h1("welcome to settings"))
-      
+      )
     ) # tabItems
   ) # body
   
