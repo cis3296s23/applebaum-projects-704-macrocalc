@@ -97,11 +97,14 @@ ui <- dashboardPage(
                     solidHeader = T,
                     width = 12,
                     collapsible = T,
-                    div(actionButton("save_recipe", "Save Recipes", icon = shiny::icon("cloud-arrow-up")), style = "font-size: 70%; margin: 5px;"),
-                    div(textOutput("recipe_table_save_id"), style = "font-size: 70%; margin: 5px;"),
-                    div(textOutput("recipe_table_save_name"), style = "font-size: 70%; margin: 5px;"),
-                    div(textOutput("recipe_table_save_serving"), style = "font-size: 70%; margin: 5px;"),
-                    div(DT::DTOutput("recipe_table_save"), style = "font-size: 70%; margin: 5px;"),
+                    div(actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-up")),
+                        hidden(actionButton("delete_recipe", "Delete Recipe", icon = shiny::icon("trash"))),
+                        style = "font-size: 70%; margin: 5px;"
+                    ),
+                    div(textOutput("recipe_table_edit_id"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_edit_name"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_edit_serving"), style = "font-size: 70%; margin: 5px;"),
+                    div(DT::DTOutput("recipe_table_edit"), style = "font-size: 70%; margin: 5px;"),
                     div(actionButton("load_recipe", "Load All Recipe", icon = shiny::icon("cloud-arrow-down")), style = "font-size: 70%; margin: 5px;"),
                     div(DT::DTOutput("recipe_table"), style = "font-size: 70%; margin: 5px;")
                 )
@@ -190,6 +193,18 @@ server <- function(input, output, session) {
     return(ing_df)
   }
   
+  clear_all_data <- function() {
+    clear_ing_df()
+    ingredients_list(ing_df$df)
+    clear_edit_data()
+  }
+  
+  clear_edit_data <- function() {
+    g_edit_meal_id(0)
+    updateTextInput(session, "meal_name", value = "")
+    updateNumericInput(session, "serving", value = 1)
+  }
+  
   load_ingredients_data <- function(my_object) {
     # clear existing data before upload ingredient
     clear_ing_df()
@@ -242,6 +257,38 @@ server <- function(input, output, session) {
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
 
+  # Delete recipe
+  observeEvent(g_edit_meal_id(), {
+    if (g_edit_meal_id() > 0) {
+      show("delete_recipe")
+    }
+    else {
+      hide("delete_recipe")
+    }
+  })
+  observeEvent(input$delete_recipe, {
+    if (g_edit_meal_id() > 0) {
+      # Import the database module
+      database <- import("db")
+      database$delete_recipe(g_edit_meal_id())
+      
+      # refresh recipes table
+      if(g_all_recipe_rendered()){
+        click("load_recipe")
+      }
+      
+      # clear all data
+      clear_all_data()
+      
+      # update recipe table edit here
+      output$recipe_table_edit <- renderDT({
+        datatable(as.data.frame(ingredients_list()), editable = FALSE, 
+                  options = list(pageLength = 5), selection = "single")
+      })
+    }
+    
+  })
+  
   # Save recipe
   observeEvent(input$save_recipe, {
     result <- showModal(
@@ -300,13 +347,14 @@ server <- function(input, output, session) {
     showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
     delay(1000, removeModal())
     
+    # refresh recipes table
     if(g_all_recipe_rendered()){
       click("load_recipe")
     }
     
-    # update new meal name if changed
-    updateTextInput(session, "meal_name", value = meal_name)
-    
+    # # update new meal name if changed
+    # updateTextInput(session, "meal_name", value = meal_name)
+    clear_all_data()
   })
   
   
@@ -328,7 +376,7 @@ server <- function(input, output, session) {
     
     output$recipe_table <- renderDT({
       # Define column names
-      names <- c("id", "name", "amount", "details")
+      names <- c("ID", "Meal Name", "Amount", "Details")
     
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
@@ -434,30 +482,30 @@ server <- function(input, output, session) {
         id <- g_edit_meal_id()
       }
       
-      output$recipe_table_save_id <- renderText({
+      output$recipe_table_edit_id <- renderText({
         paste0("ID: ", id)
       })
-      output$recipe_table_save_name <- renderText({
+      output$recipe_table_edit_name <- renderText({
         paste0("Name: ", input$meal_name)
       })
-      output$recipe_table_save_serving <- renderText({
+      output$recipe_table_edit_serving <- renderText({
         paste0("Serving amounts: ", input$serving)
       })
     }
     else {
-      output$recipe_table_save_id <- renderText({
+      output$recipe_table_edit_id <- renderText({
         ""
       })
-      output$recipe_table_save_name <- renderText({
+      output$recipe_table_edit_name <- renderText({
         ""
       })
-      output$recipe_table_save_serving <- renderText({
+      output$recipe_table_edit_serving <- renderText({
         ""
       })
     }
     
-    # update recipe table save here
-    output$recipe_table_save <- renderDT({
+    # update recipe table edit here
+    output$recipe_table_edit <- renderDT({
       datatable(as.data.frame(ingredients_list()), editable = FALSE, 
                 options = list(pageLength = 5), selection = "single")
     })
@@ -507,10 +555,6 @@ server <- function(input, output, session) {
     }
   )
   
-  
-  
-  
-
   # Upload Ingredients as JSON file
   observeEvent(input$upload_ingredient_json, {
     req(input$upload_ingredient_json)
@@ -523,9 +567,7 @@ server <- function(input, output, session) {
     delay(1000, removeModal())
     
     # clear data
-    g_edit_meal_id(0)
-    updateTextInput(session, "meal_name", value = "")
-    updateNumericInput(session, "serving", value = 1)
+    clear_edit_data()
     
     if(g_all_recipe_rendered()){
       click("load_recipe")
