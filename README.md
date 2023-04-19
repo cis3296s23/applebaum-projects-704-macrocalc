@@ -1,7 +1,7 @@
 [![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-c66648af7eb3fe8bc4f294546bfd86ef473780cde1dea487d3c4ff354943c9ae.svg)](https://classroom.github.com/online_ide?assignment_repo_id=10609743&assignment_repo_type=AssignmentRepo)
 <div align="center">
 
-# Project Name
+# MacroCalc
 [![Report Issue on Jira](https://img.shields.io/badge/Report%20Issues-Jira-0052CC?style=flat&logo=jira-software)](https://temple-cis-projects-in-cs.atlassian.net/jira/software/c/projects/DT/issues)
 [![Deploy Docs](https://github.com/ApplebaumIan/tu-cis-4398-docs-template/actions/workflows/deploy.yml/badge.svg)](https://github.com/ApplebaumIan/tu-cis-4398-docs-template/actions/workflows/deploy.yml)
 [![Documentation Website Link](https://img.shields.io/badge/-Documentation%20Website-brightgreen)](https://applebaumian.github.io/tu-cis-4398-docs-template/)
@@ -9,30 +9,25 @@
 
 </div>
 
-
-## Keywords
-
-Section #, as well as any words that quickly give your peers insights into the application like programming language, development platform, type of application, etc.
-
 ## Project Abstract
 
-This document proposes a novel application of a text message (SMS or Email) read-out and hands-free call interacted between an Android Smartphone and an infotainment platform (headunit) in a car environment. When a phone receives an SMS or Email, the text message is transferred from the phone to the headunit through a Bluetooth connection. On the headunit, user can control which and when the received SMS or E-mail to be read out through the in-vehicle audio system. The user may press one button on the headunit to activate the hands-free feature to call back the SMS sender.
-
-## High Level Requirement
-
-Describe the requirements – i.e., what the product does and how it does it from a user point of view – at a high level.
+This application aims to provide indivoduals with a tool to calculate the nutrient breakdown of any recipe. Users can give the application a recipe with ingredients and their amounts which will then be converted to its nutrient breakdown per serving based on values from an existing database. Additionally, meals can be saved and modified and compared to each other. User meals can be logged and compared against a preset macronutrient limit to help users reach their goals.
 
 ## Conceptual Design
 
-Describe the initial design concept: Hardware/software architecture, programming language, operating system, etc.
+![image](https://user-images.githubusercontent.com/89528532/232869621-f22f5617-d928-4821-b4fb-309d4c3592b8.png)
+
+The project will be an application with a search tool for selecting ingredients as well as an entry field to submit full recipes. Depending on the selected ingredients a visual demonstration will display the nutrient amounts compared against your personal daily limit. This project will use the R programming language (specifically the Shiny package) and python. The Shiny package is for constructing interactive web applications from R with easy-to-understand graphics such (bar graphs, charts, etc. Python will be used to create and store user profiles or allow sign-ins through other methods as this is not available through R. Code from the open source will need to be moved and reformatted so that a proper menu and tabs can be created rather than having all the information on one page.
 
 ## Background
 
-The background will contain a more detailed description of the product and a comparison to existing similar projects/products. A literature search should be conducted and the results listed. Proper citation of sources is required. If there are similar open-source products, you should state whether existing source will be used and to what extent. If there are similar closed-source/proprietary products, you should state how the proposed product will be similar and different.
+MacroCalc will function as a nutrition planning web application. It will allow users to upload recipes or individual ingredients and in return receive a detailed nutrient breakdown. These meals can be saved, modified, and compared to each other. A user’s meals will be compared against their preset macronutrient goals. The application will be fully functional on and offline and allows for customization and conversion in terms of amounts.
 
 ## Required Resources
 
-Discuss what you need to develop this project. This includes background information you will need to acquire, hardware resources, and software resources. If these are not part of the standard Computer Science Department lab resources, these must be identified early and discussed with the instructor.
+To complete this project, we will need to find a large database of ingredients and their nutrient values I can use as a base data source in addition to personal ingredients that a user may add. These are publicly available on government funded resource pages. In terms of software resources, I will just need RStudio to make use of the R programming language and an installation of the Shiny package. No specific hardware resource will be needed other than a device that can utilize RStudio.
+
+This is similar to paid closed-source nutrition tools that already exist such as Noom or MyFitnessPal. Unlike these tools however, MacroCalc will have a focus on offline usability, quantity customization, and simple design to help users have greater freedom and accessibility in achieving their personal nutrition goals.
 
 ## Collaborators
 
@@ -40,17 +35,31 @@ Discuss what you need to develop this project. This includes background informat
 <table>
 <tr>
     <td align="center">
-        <a href="https://github.com/ApplebaumIan">
-            <img src="https://avatars.githubusercontent.com/u/9451941?v=4" width="100;" alt="ApplebaumIan"/>
+        <a href="https://github.com/son2005">
+            <img src="https://avatars.githubusercontent.com/u/18011568?v=4" width="100;" alt="ApplebaumIan"/>
             <br />
-            <sub><b>Ian Tyler Applebaum</b></sub>
+            <sub><b>Son Tran</b></sub>
         </a>
     </td>
     <td align="center">
-        <a href="https://github.com/leighflagg">
-            <img src="https://avatars.githubusercontent.com/u/77810293?v=4" width="100;" alt="leighflagg"/>
+        <a href="https://github.com/jutobash">
+            <img src="https://avatars.githubusercontent.com/u/89528532?v=4" width="100;" alt="ApplebaumIan"/>
             <br />
-            <sub><b>Null</b></sub>
+            <sub><b>Justin Kuruvilla</b></sub>
+        </a>
+    </td>
+    <td align="center">
+        <a href="https://github.com/PatrickBrady7">
+            <img src="https://avatars.githubusercontent.com/u/97626904?v=4" width="100;" alt="ApplebaumIan"/>
+            <br />
+            <sub><b>Patrick Brady</b></sub>
+        </a>
+    </td>
+    <td align="center">
+        <a href="https://github.com/gevdram">
+            <img src="https://avatars.githubusercontent.com/u/111989879?v=4" width="100;" alt="leighflagg"/>
+            <br />
+            <sub><b>Gevork Dramagotchian</b></sub>
         </a>
     </td></tr>
 </table>

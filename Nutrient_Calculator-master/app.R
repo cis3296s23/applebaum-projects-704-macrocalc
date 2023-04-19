@@ -83,20 +83,20 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName = "Hometab", 
-              selectizeInput(
-                'food_id', '1. Ingredient', choices = ca_food_choices,
-                options = list(
-                  placeholder = 'Type to search for ingredient',
-                  onInitialize = I('function() { this.setValue(""); }')
-                )
-              ),
-              conditionalPanel('input.food_id != ""', 
-                               selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                               numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-              actionButton("add", "Add ingredient"),
-              actionButton("remove", "Remove ingredient"),
-              numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-              textInput("meal_name", "Meal Name:"),
+        selectizeInput(
+          'food_id', '1. Ingredient', choices = ca_food_choices,
+          options = list(
+            placeholder = 'Type to search for ingredient',
+            onInitialize = I('function() { this.setValue(""); }')
+          )
+        ),
+        conditionalPanel('input.food_id != ""', 
+                         selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+                         numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+        actionButton("add", "Add ingredient"),
+        actionButton("remove", "Remove ingredient"),
+        numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
+        textInput("meal_name", "Meal Name:"),
       ),
       
       # tabItem(tabName = "subhome", 
@@ -265,11 +265,11 @@ server <- function(input, output, session) {
   }
   
   
-  
+
   ########## SAVE RECIPE
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
-  
+
   # Delete recipe
   observeEvent(g_edit_meal_id(), {
     if (g_edit_meal_id() > 0) {
@@ -355,7 +355,7 @@ server <- function(input, output, session) {
     else {
       database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
     }
-    
+
     # Show confirmation message
     showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
     delay(1000, removeModal())
@@ -390,7 +390,7 @@ server <- function(input, output, session) {
     output$recipe_table <- renderDT({
       # Define column names
       names <- c("ID", "Meal Name", "Amount", "Details")
-      
+
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
       colnames(data_df) <- names
@@ -474,7 +474,7 @@ server <- function(input, output, session) {
       # save to db
       # Import the database module
       database <- import("db")
-      
+
       # Update recipe
       database$update_recipe(id_value, name_value, amount_value, details_value)
       
