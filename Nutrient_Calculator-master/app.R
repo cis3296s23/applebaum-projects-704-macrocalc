@@ -571,12 +571,12 @@ server <- function(input, output, session) {
       user_info_db <- database$get_user_info(g_user_email())
       # New user
       if (is.null(user_info_db)) {
-        print("New user! Save data to db")
-        database$save_user_info(user_info$name, g_user_email())
+        # print("New user! Save data to db")
+        database$save_user_info(g_user_name(), g_user_email())
       }
       # Existing user
       else {
-        print("Existing user, print all users")
+        # print("Existing user, print all users")
         test <- database$get_all_data()
         dput(test)
       }
