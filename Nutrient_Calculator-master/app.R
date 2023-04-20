@@ -807,7 +807,8 @@ server <- function(input, output, session) {
                           name = "% Daily Value") +
       theme(
         legend.position = "none",
-        panel.background = element_rect(fill = "lightyellow"))
+        panel.background = element_rect(fill = "lightyellow"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
     ggplotly(plot_min)
   })
   output$vitamin_plot <- renderPlotly({
