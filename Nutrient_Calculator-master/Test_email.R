@@ -30,7 +30,7 @@ gar_api_generator_new <- function(url, method, data_parse_function, checkTrailin
 user_email_new <- function(email) {}
 import_new <- function(module) {
   return(list(
-    get_user_info = function(email) { return(NULL) },
+    get_user_info = function(email) { return("tuc50903@temple.edu") },
     save_user_info = function(name, email) {
       expect_equal(name, "Gevork Dramgotchian")
       expect_equal(email, "tuc50903@temple.edu")

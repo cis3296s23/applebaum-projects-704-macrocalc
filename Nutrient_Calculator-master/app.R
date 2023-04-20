@@ -9,6 +9,10 @@ library(jsonlite)
 library(shinyjs)
 library(shinyFiles)
 
+rsconnect::setAccountInfo(name='macrocalc',
+                          token='154D97C14C26B3416F6B1C64CFE8EB01',
+                          secret='A3XVc3aLgcEk3vl8e8mm5VcgMzAnJcwbXtyc4ULS')
+
 # load files from Canada Nutrient File
 nutr_files <- list.files(pattern = "*.rda")
 lapply(nutr_files,load,.GlobalEnv)
@@ -56,32 +60,70 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 ui <- dashboardPage(
   dashboardHeader(title = "Nutrition Calculator"),
   dashboardSidebar(
+    tags$head(
+      HTML('<script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://unpkg.com/jwt-decode/build/jwt-decode.js"></script>'),
+      includeScript("signin.js"),
+      useShinyjs()
+    ),
     sidebarMenu(
-      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard")),
-      menuSubItem("opt. home subtab", tabName = "subhome"),
+      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard"),
+               menuSubItem("Ingredient Selection", tabName = "sub1"),
+               menuSubItem("Recipes", tabName = "subhome")
+      ),
       menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
-      menuItem("Settings", tabName = "Settingstab", icon = icon("cog")),
-      tags$p("Notice: some info note")
+      tags$p("Notice: Consult your physician")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
+    ),
+    div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
+        "data-ux_mode"="popup", "data-auto_prompt"="true", "data-auto_select"="true"),
+    div(id="g_id_signin", class="g_id_signin", "data-type"="standard", "data-shape"="rectangular", "data-theme"="outline", "data-text"="signin_with", "data-size"="large", "data-logo_alignment"="left"
     ),
     useShinyjs()
     
   ),
   dashboardBody(
     tabItems(
-      tabItem(tabName = "Hometab", selectizeInput(
-        'food_id', '1. Ingredient', choices = ca_food_choices,
-        options = list(
-          placeholder = 'Type to search for ingredient',
-          onInitialize = I('function() { this.setValue(""); }')
-        )
+      tabItem(tabName = "sub1", 
+              selectizeInput(
+                'food_id', '1. Ingredient', choices = ca_food_choices,
+                options = list(
+                  placeholder = 'Type to search for ingredient',
+                  onInitialize = I('function() { this.setValue(""); }')
+                )
+              ),
+              conditionalPanel('input.food_id != ""', 
+                               selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+                               numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+              actionButton("add", "Add ingredient"),
+              actionButton("remove", "Remove ingredient"),
+              numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
+              # textInput("meal_name", "Meal Name:"),
+              fluidRow(
+                box(title = "Ingredients",
+                    solidHeader = T,
+                    width = 4,
+                    collapsible = T,
+                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                box(title = "Nutrition Table",
+                    solidHeader = T,
+                    width = 4, 
+                    collapsible = T,
+                    collapsed = F,
+                    tags$p(textOutput("serving", inline = T)),
+                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+              )
+              # ,
+              # fluidRow(
+              #   box(title = "Nutrition Table",
+              #       solidHeader = T,
+              #       width = 4, 
+              #       collapsible = T,
+              #       collapsed = F,
+              #       tags$p(textOutput("serving", inline = T)),
+              #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+              #   )
       ),
-      conditionalPanel('input.food_id != ""', 
-                       selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                       numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-      actionButton("add", "Add ingredient"),
-      actionButton("remove", "Remove ingredient"),
-      numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),),
+      
       # tabItem(tabName = "subhome", 
       #         actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down")),
       #         downloadButton('download_ingredient_json', 'Download Ingredients'),
@@ -89,13 +131,29 @@ ui <- dashboardPage(
       # ),
       tabItem(tabName = "subhome", 
               fluidRow(
-                column(4, actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-down"))),
+                box(title = "Your recipes",
+                    solidHeader = T,
+                    width = 12,
+                    collapsible = T,
+                    div(actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-up")),
+                        hidden(actionButton("delete_recipe", "Delete Recipe", icon = shiny::icon("trash"))),
+                        style = "font-size: 70%; margin: 5px;"
+                    ),
+                    div(textOutput("recipe_table_edit_id"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_edit_name"), style = "font-size: 70%; margin: 5px;"),
+                    div(textOutput("recipe_table_edit_serving"), style = "font-size: 70%; margin: 5px;"),
+                    div(DT::DTOutput("recipe_table_edit"), style = "font-size: 70%; margin: 5px;"),
+                    div(actionButton("load_recipe", "Load All Recipe", icon = shiny::icon("cloud-arrow-down")), style = "font-size: 70%; margin: 5px;"),
+                    div(DT::DTOutput("recipe_table"), style = "font-size: 70%; margin: 5px;")
+                )
               ),
               fluidRow(
-                column(4, downloadButton('download_ingredient_json', 'Download Ingredients')),
-              ),
-              fluidRow(
-                column(4, fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"))
+                box(title = "Download / Upload Ingredients",
+                    solidHeader = T,
+                    width = 12,
+                    div(downloadButton('download_ingredient_json', 'Download Ingredients'), style = "font-size: 70%;"),
+                    div(fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
+                )
               )
       ),
       tabItem(tabName = "Activitytab", 
@@ -105,23 +163,23 @@ ui <- dashboardPage(
                 valueBoxOutput("rich_nutrient")
               ),
               fluidRow(
-                box(title = "Ingredients",
-                    solidHeader = T,
-                    width = 4,
-                    collapsible = T,
-                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+                # box(title = "Ingredients",
+                #     solidHeader = T,
+                #     width = 4,
+                #     collapsible = T,
+                #     div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
                 box(title = "Macronutrients", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("macro_plot"))
               ), # row
               fluidRow(
-                box(title = "Nutrition Table",
-                    solidHeader = T,
-                    width = 4, 
-                    collapsible = T,
-                    collapsed = F,
-                    tags$p(textOutput("serving", inline = T)),
-                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
+                # box(title = "Nutrition Table",
+                #     solidHeader = T,
+                #     width = 4, 
+                #     collapsible = T,
+                #     collapsed = F,
+                #     tags$p(textOutput("serving", inline = T)),
+                #     div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;")),
                 box(title = "Minerals", solidHeader = T,
                     width = 8, collapsible = T,
                     plotlyOutput("mineral_plot"))
@@ -131,9 +189,7 @@ ui <- dashboardPage(
                     width = 12, collapsible = T,
                     plotlyOutput("vitamin_plot"))
               ) # row
-      ),
-      tabItem(tabName = "Settingstab", h1("welcome to settings"))
-      
+      )
     ) # tabItems
   ) # body
   
@@ -152,111 +208,43 @@ server <- function(input, output, session) {
   g_food_id <- reactiveVal(0)
   g_measure_unit <- reactiveVal("")
   g_quantity <- reactiveVal(0)
+  g_meal_data <- reactiveVal(list(list()))
+  g_edit_meal_id <- reactiveVal(0)
+  g_all_recipe_rendered <- reactiveVal(FALSE)
   
+  ########## define function here
+  clear_ing_df <- function() {
+    ing_df$df <- data.frame("quantity" = numeric(), 
+                            "units" = character(), 
+                            "ingredient_name" = character(), 
+                            "FoodID" = numeric(), 
+                            stringsAsFactors = F)
+    ing_df$measure <- data.frame("numeric" = numeric(),
+                                 "units" = character(),
+                                 "description" = character(),
+                                 "ConversionFactorValue" = numeric(),
+                                 "MeasureID" = numeric(),
+                                 "FoodID" = numeric(),
+                                 stringsAsFactors = F)
+    return(ing_df)
+  }
   
+  clear_all_data <- function() {
+    clear_ing_df()
+    ingredients_list(ing_df$df)
+    clear_edit_data()
+  }
   
-  ########## SAVE RECIPE
-  # Define a reactive variable to store the list of ingredients
-  ingredients_list <- reactiveVal(list())
+  clear_edit_data <- function() {
+    g_edit_meal_id(0)
+    updateTextInput(session, "meal_name", value = "")
+    updateNumericInput(session, "serving", value = 1)
+  }
   
-  
-  
-  # handle button click
-  observeEvent(input$save_recipe, {
-    print("====ingredients list")
-    print(ingredients_list)
-    
-    # Convert the list to JSON text
-    recipe_data <- toJSON(ingredients_list())
-    
-    # Print the JSON text
-    print("====recipe info")
-    print(recipe_data)
-    
-    # Check if user email exists or not
-    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
-      print("No user email!!!")
-    }
-    else {
-      # Import the database module
-      database <- import("db")
-      print("=====save recipe")
-      print(list(g_user_email(), recipe_data))
-      database$save_recipe(g_user_email(), input$serving, recipe_data)
-      # Print all recipe of this user
-      recipes <- database$get_recipes(g_user_email())
-      print("======print all recipes")
-      dput(recipes)
-      
-      # Show confirmation message
-      showModal(modalDialog("Save Recipes successfully!", easyClose = TRUE))
-      delay(1000, removeModal())
-    }
-    
-  })
-  
-  ##########LOGIN WITH GOOGLE
-  g_authenticated(TRUE)
-  
-  # check if user is authenticated
-  observe({
-    if (g_authenticated()) {
-
-      print("email is")
-      print(g_user_email)
-      
-
-      # Import the database module
-      database <- import("db")
-      
-      # Get user data from db using email
-      user_info_db <- database$get_user_info(g_user_email())
-      # New user
-      if (is.null(user_info_db)) {
-        print("New user! Save data to db")
-        database$save_user_info(user_info$name, g_user_email())
-      }
-      # Existing user
-      else {
-        print("Existing user, print all users")
-        test <- database$get_all_data()
-        dput(test)
-      }
-    }
-    
-    
-  })
-  ########## DOWNLOAD/UPLOAD Ingredients
-  # Download Ingredients as json file
-  output$download_ingredient_json <- downloadHandler(
-    filename = function() {
-      paste("my_data", ".json", sep = "")
-    },
-    content = function(file) {
-      jsonlite::write_json(ingredients_list(), file)
-    }
-  )
-
-  # Upload Ingredients as JSON file
-  observeEvent(input$upload_ingredient_json, {
-    # # Open file dialog to select JSON file
-    # file_path <- file.choose()
-    # # Read JSON data from file
-    # json_data <- readLines(file_path)
-    # # Convert JSON data to R object
-    # my_object <- jsonlite::fromJSON(json_data)
-    
-    
-    req(input$upload_ingredient_json)
-    my_object <- jsonlite::fromJSON(input$upload_ingredient_json$datapath)
-    # Do something with the json data
-    print(my_object)
-    
-    # Show confirmation message
-    showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
-    delay(1000, removeModal())
-    # Print loaded object
-    # print(my_object)
+  load_ingredients_data <- function(my_object) {
+    # clear existing data before upload ingredient
+    clear_ing_df()
+    ingredients_list(ing_df$df)
     
     for (i in 1:nrow(my_object)) {
       # cat(paste0("Quantity: ", my_object$quantity[i], "\n"))
@@ -295,26 +283,342 @@ server <- function(input, output, session) {
         input_measure <- input_measure[which(abs(input_measure$numeric-g_quantity())==min(abs(input_measure$numeric-g_quantity()))),]
       }
       isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
-      ingredients_list(ing_df$df)
+    }
+    ingredients_list(ing_df$df) 
+  }
+  
+  
+  
+  ########## SAVE RECIPE
+  # Define a reactive variable to store the list of ingredients
+  ingredients_list <- reactiveVal(list())
+  
+  # Delete recipe
+  observeEvent(g_edit_meal_id(), {
+    if (g_edit_meal_id() > 0) {
+      show("delete_recipe")
+    }
+    else {
+      hide("delete_recipe")
     }
   })
+  observeEvent(input$delete_recipe, {
+    if (g_edit_meal_id() > 0) {
+      # Import the database module
+      database <- import("db")
+      database$delete_recipe(g_edit_meal_id())
+      
+      # refresh recipes table
+      if(g_all_recipe_rendered()){
+        click("load_recipe")
+      }
+      
+      # clear all data
+      clear_all_data()
+      
+      # update recipe table edit here
+      output$recipe_table_edit <- renderDT({
+        datatable(as.data.frame(ingredients_list()), editable = FALSE, 
+                  options = list(pageLength = 5), selection = "single")
+      })
+    }
+    
+  })
   
-
-
+  # Save recipe
+  observeEvent(input$save_recipe, {
+    result <- showModal(
+      modalDialog(
+        title = "Enter meal name",
+        textInput("p_meal_name", "Meal Name", value = input$meal_name),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton("submit_save_recipe", "Submit")
+        )
+      )
+    )
+  })
+  observeEvent(input$submit_save_recipe, {
+    # Handle the input value here
+    meal_name <- input$p_meal_name
+    print(paste("Save meal name: ", meal_name))
+    
+    time_delay <- 3000
+    if (is.null(g_user_email()) || nchar(g_user_email()) == 0) {
+      showModal(modalDialog("Please login before saving meal."))
+      delay(time_delay, removeModal())
+      return()
+    }
+    
+    if (nchar(meal_name) == 0) {
+      showModal(modalDialog("Please enter a meal name."))
+      delay(time_delay, removeModal())
+      return()
+    }
+    
+    if (length(ingredients_list()) == 0) {
+      showModal(modalDialog("Ingredient list is empty. Please add some ingredients."))
+      delay(time_delay, removeModal())
+      return()
+    }
+    
+    # Convert the list to JSON text
+    recipe_data <- toJSON(ingredients_list())
+    
+    # Import the database module
+    database <- import("db")
+    print("=====save recipe")
+    print(list(g_user_email(), meal_name, input$serving, recipe_data))
+    
+    # check meal id for create new or update
+    if (g_edit_meal_id() > 0) {
+      database$update_recipe(g_edit_meal_id(), meal_name, input$serving, recipe_data)
+    }
+    # create new
+    else {
+      database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
+    }
+    
+    # Show confirmation message
+    showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
+    delay(1000, removeModal())
+    
+    # refresh recipes table
+    if(g_all_recipe_rendered()){
+      click("load_recipe")
+    }
+    
+    # # update new meal name if changed
+    # updateTextInput(session, "meal_name", value = meal_name)
+    clear_all_data()
+  })
+  
+  
+  # testing
+  # data <- list(
+  #   list("1", "aaa", 15, "[{\"quantity\":\"5\",\"units\":\"ml \",\"ingredient_name\":\"Chinese dish, chow mein, chicken\",\"FoodID\":\"5\"}]"),
+  #   list("2", "nbbbb", 25, "[{\"quantity\":\"5\",\"units\":\"g \",\"ingredient_name\":\"Fried chicken, mashed potatoes and vegetables\",\"FoodID\":\"8\"}]")
+  # )
+  observeEvent(input$load_recipe, {
+    
+    # Import the database module
+    database <- import("db")
+    
+    # Print all recipe of this user
+    recipes <- database$get_recipes(g_user_email())
+    print("======print all recipes")
+    print(recipes)
+    g_meal_data(recipes)
+    
+    output$recipe_table <- renderDT({
+      # Define column names
+      names <- c("ID", "Meal Name", "Amount", "Details")
+      
+      # Convert data to data.frame
+      data_df <- do.call(rbind, recipes)
+      colnames(data_df) <- names
+      
+      # Create the datatable
+      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+    })
+    
+    g_all_recipe_rendered(TRUE)
+    
+  })
+  
+  observeEvent(input$recipe_table_rows_selected, {
+    selected_row <- isolate(input$recipe_table_rows_selected)
+    if (length(selected_row) > 0) {
+      row_data <- g_meal_data()[[selected_row]]
+      
+      # load this data to the table next to save recipe to leverage the existing feature for editing
+      g_edit_meal_id(as.numeric(row_data[[1]]))
+      updateTextInput(session, "meal_name", value = row_data[[2]])
+      updateNumericInput(session, "serving", value = as.numeric(row_data[[3]]))
+      load_ingredients_data(fromJSON(row_data[[4]]))
+      
+      
+      # showModal(modalDialog(
+      #   title = "Mofify Meal",
+      #   disabled(textInput("id_input", label = "ID:", value = row_data[[1]])),
+      #   textInput("name_input", label = "Name:", value = row_data[[2]]),
+      #   textInput("amount_input", label = "Amount:", value = row_data[[3]]),
+      #   hidden(textInput("details_input", label = "Details Json Data:", value = row_data[[4]])),
+      #   fluidRow(
+      #     box(title = "Details",
+      #         solidHeader = T,
+      #         width = 12,
+      #         collapsible = T,
+      #         div(DT::DTOutput("recipe_table_details"), style = "font-size: 70%;"))
+      #   ),
+      #   footer = tagList(
+      #     modalButton("Cancel"),
+      #     actionButton("save_meal", "Save")
+      #   ),
+      #   easyClose = TRUE
+      # ))
+      # 
+      # # Display details data in table
+      # output$recipe_table_details <- renderDataTable({
+      #   datatable(as.data.frame(fromJSON(row_data[[4]])), editable = FALSE, options = list(pageLength = 5), selection = "single")
+      # })
+    }
+  })
+  observeEvent(input$save_meal, {
+    id_value <- as.numeric(input$id_input)
+    name_value <- input$name_input
+    amount_value <- as.numeric(input$amount_input)
+    details_value <- input$details_input
+    
+    print("=========modified meal data")
+    print(list(id_value, name_value, amount_value, details_value))
+    
+    selected_row <- isolate(input$recipe_table_rows_selected)
+    if (length(selected_row) > 0) {
+      data <- g_meal_data()
+      data[[selected_row]][[1]] <- id_value
+      data[[selected_row]][[2]] <- name_value
+      data[[selected_row]][[3]] <- amount_value
+      data[[selected_row]][[4]] <- details_value
+      
+      # Update the table
+      output$recipe_table <- renderDT({
+        # Define column names
+        names <- c("id", "name", "amount", "details")
+        
+        # Convert data to data.frame
+        data_df <- do.call(rbind, data)
+        colnames(data_df) <- names
+        
+        # Create the datatable
+        datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+      })
+      
+      # save to db
+      # Import the database module
+      database <- import("db")
+      
+      # Update recipe
+      database$update_recipe(id_value, name_value, amount_value, details_value)
+      
+      
+      g_meal_data(data)
+    }
+    
+    # Close the modal dialog
+    removeModal()
+  })
+  
+  observeEvent(ingredients_list(), {
+    print(length(ingredients_list()))
+    if (length(ingredients_list()) > 0) {
+      
+      id <- "new"
+      if (g_edit_meal_id() > 0) {
+        id <- g_edit_meal_id()
+      }
+      
+      output$recipe_table_edit_id <- renderText({
+        paste0("ID: ", id)
+      })
+      output$recipe_table_edit_name <- renderText({
+        paste0("Name: ", input$meal_name)
+      })
+      output$recipe_table_edit_serving <- renderText({
+        paste0("Serving amounts: ", input$serving)
+      })
+    }
+    else {
+      output$recipe_table_edit_id <- renderText({
+        ""
+      })
+      output$recipe_table_edit_name <- renderText({
+        ""
+      })
+      output$recipe_table_edit_serving <- renderText({
+        ""
+      })
+    }
+    
+    # update recipe table edit here
+    output$recipe_table_edit <- renderDT({
+      datatable(as.data.frame(ingredients_list()), editable = FALSE, 
+                options = list(pageLength = 5), selection = "single")
+    })
+  })
+  
+  
+  
+  ##########LOGIN WITH GOOGLE
+  observeEvent(input$g.email, {
+    g_user_email(input$g.email)
+    g_user_name(input$g.name)
+    g_authenticated(TRUE)
+  })
+  
+  # check if user is authenticated
+  observe({
+    if (g_authenticated()) {
+      
+      print("email is")
+      print(g_user_email)
+      
+      
+      # Import the database module
+      database <- import("db")
+      
+      # Get user data from db using email
+      user_info_db <- database$get_user_info(g_user_email())
+      # New user
+      if (is.null(user_info_db)) {
+        print("New user! Save data to db")
+        database$save_user_info(user_info$name, g_user_email())
+      }
+      # Existing user
+      else {
+        print("Existing user, print all users")
+        test <- database$get_all_data()
+        dput(test)
+      }
+    }
+    
+    
+  })
+  ########## DOWNLOAD/UPLOAD Ingredients
+  # Download Ingredients as json file
+  output$download_ingredient_json <- downloadHandler(
+    filename = function() {
+      paste("my_data", ".json", sep = "")
+    },
+    content = function(file) {
+      jsonlite::write_json(ingredients_list(), file)
+    }
+  )
+  
+  # Upload Ingredients as JSON file
+  observeEvent(input$upload_ingredient_json, {
+    req(input$upload_ingredient_json)
+    my_object <- jsonlite::fromJSON(input$upload_ingredient_json$datapath)
+    # Do something with the json data
+    print(my_object)
+    
+    # Show confirmation message
+    showModal(modalDialog("Loaded Ingredients successfully!", easyClose = TRUE))
+    delay(1000, removeModal())
+    
+    # clear data
+    clear_edit_data()
+    
+    if(g_all_recipe_rendered()){
+      click("load_recipe")
+    }
+    
+    load_ingredients_data(my_object)
+  })
+  
   # make reactive to store ingredients
   ing_df <- shiny::reactiveValues()
-  ing_df$df <- data.frame("quantity" = numeric(), 
-                          "units" = character(), 
-                          "ingredient_name" = character(), 
-                          "FoodID" = numeric(), 
-                          stringsAsFactors = F)
-  ing_df$measure <- data.frame("numeric" = numeric(),
-                               "units" = character(),
-                               "description" = character(),
-                               "ConversionFactorValue" = numeric(),
-                               "MeasureID" = numeric(),
-                               "FoodID" = numeric(),
-                               stringsAsFactors = F)
+  clear_ing_df()
   
   # observe ingredient inputs
   observeEvent(input$food_id, {
@@ -358,7 +662,7 @@ server <- function(input, output, session) {
                                                  input$measure_unit, 
                                                  names(ca_food_choices[ca_food_choices == input$food_id]), 
                                                  as.numeric(input$food_id)))
-
+    
     # get actual working ingredient dataframe for dplyr
     input_measure <- measure_df()
     input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
@@ -373,7 +677,7 @@ server <- function(input, output, session) {
     ingredients_list(ing_df$df)
   })
   
-
+  
   # main nutrition data frame
   nutrition_df <- reactive({
     measure_food_df <- ing_df$measure
@@ -497,8 +801,14 @@ server <- function(input, output, session) {
   output$serving <- renderText(paste("for 1 serving (", input$serving, "servings in recipe)"))
 }
 
-# Run the application 
+# # For release
+# # Run the application 
 # shinyApp(ui = ui, server = server)
-# Run the app interactively
-runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
+# # runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
+
+# For testing gg sign-in on localhost or RStudio
+# gg sign-in didn't work with 127.0.0.1, open a browser tab or change it to localhost
+# http://localhost:7147/
+# shinyApp(ui = ui, server = server)
+runApp(shinyApp(ui = ui, server = server), port=7147, launch.browser = TRUE) # for testing with gg sign in
