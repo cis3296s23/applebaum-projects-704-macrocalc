@@ -164,6 +164,7 @@ ui <- dashboardPage(
                     solidHeader = T,
                     width = 15,
                     collapsible = T,
+                    hidden(actionButton("delete_entry", "Delete Entry", icon = shiny::icon("trash"))),
                     div(DT::DTOutput("log_table"), style = "font-size: 70%; margin: 5px;")
                 )
               ),
@@ -221,6 +222,8 @@ server <- function(input, output, session) {
   g_meal_data <- reactiveVal(list(list()))
   g_edit_meal_id <- reactiveVal(0)
   g_all_recipe_rendered <- reactiveVal(FALSE)
+  
+  log_data <- reactiveValues(data_df = NULL)
   
   ########## define function here
   clear_ing_df <- function() {
@@ -361,9 +364,69 @@ server <- function(input, output, session) {
       
       # Create the datatable
       datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+      
+      #update global var for use in deletion
+      log_data$data_df <- data_df
     })
+    
   })
   
+  #Delete log
+  #first handle button visibility based on row selection
+  observe({
+    selected_rows <- input$log_table_rows_selected
+    
+    if (length(selected_rows) > 0) {
+          #print("nothidden")
+          show("delete_entry")
+        } else {
+          #print("yeshidden")
+          hide("delete_entry")
+        }
+  })
+  #handle button click
+  observeEvent(input$delete_entry, {
+    selected_row <- input$log_table_rows_selected
+    
+    if (length(selected_row) == 1) {
+      database <- import("db")
+      
+      #get the ID for selected row
+      id_val <- log_data$data_df[selected_row, "ID"]
+      
+      print("IDVALstart")
+      print(id_val[[1]])
+      print("IDVAlend")
+      
+      database$delete_log(id_val[[1]])
+
+      #refresh log table
+      logs <- database$get_log(g_user_email())
+      
+      # load it on the activity table
+      output$log_table <- renderDT({
+        # Define column names
+        names <- c("ID", "Meal Name", "Amount", "Details")
+        
+        # Convert data to data.frame
+        data_df <- do.call(rbind, logs)
+        colnames(data_df) <- names
+        
+        # Create the datatable
+        datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+        
+        #update global var when refreshing
+        log_data$data_df <- data_df
+      })
+      
+      
+      clear_all_data()
+      
+    }
+    
+  
+  })
+
   # Save recipe
   observeEvent(input$save_recipe, {
     result <- showModal(

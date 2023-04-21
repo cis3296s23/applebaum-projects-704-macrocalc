@@ -122,6 +122,19 @@ def delete_recipe(recipe_id):
         print("An error occurred while saving data to the database:", e)
     finally:
         conn.close()
+
+def delete_log(log_id):
+    conn = create_connection()
+    try:
+        # Delete Log
+        conn.execute("DELETE FROM log WHERE id = ?", (log_id,))
+        
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
     
 # Retrieve all name and email data from the database
 def get_all_data():
