@@ -85,44 +85,45 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName = "sub1", 
-              selectizeInput(
-                'food_id', '1. Ingredient', choices = ca_food_choices,
-                options = list(
-                  placeholder = 'Type to search for ingredient',
-                  onInitialize = I('function() { this.setValue(""); }')
-                )
-              ),
-              conditionalPanel('input.food_id != ""', 
-                               selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                               numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-              actionButton("add", "Add ingredient"),
-              actionButton("remove", "Remove ingredient"),
-              numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-              hidden(textInput("meal_name", "Meal Name:")),
-              fluidRow(
-                box(title = "Ingredients",
-                    solidHeader = T,
-                    width = 4,
-                    collapsible = T,
-                    div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
-                box(title = "Nutrition Table",
-                    solidHeader = T,
-                    width = 4, 
-                    collapsible = T,
-                    collapsed = F,
-                    tags$p(textOutput("serving", inline = T)),
-                    div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
-              )
-              # ,
-              # fluidRow(
-              #   box(title = "Nutrition Table",
-              #       solidHeader = T,
-              #       width = 4, 
-              #       collapsible = T,
-              #       collapsed = F,
-              #       tags$p(textOutput("serving", inline = T)),
-              #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
-              #   )
+		  selectizeInput(
+			'food_id', '1. Ingredient', choices = ca_food_choices,
+			options = list(
+			  placeholder = 'Type to search for ingredient',
+			  onInitialize = I('function() { this.setValue(""); }')
+			)
+		  ),
+		  conditionalPanel('input.food_id != ""', 
+						   selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+						   numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+		  actionButton("add", "Add ingredient"),
+		  actionButton("remove", "Remove ingredient"),
+		  numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
+		  hidden(textInput("meal_name", "Meal Name:")),
+		  fluidRow(
+			box(title = "Ingredients",
+				solidHeader = T,
+				width = 4,
+				collapsible = T,
+				div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+			box(title = "Nutrition Table",
+				solidHeader = T,
+				width = 4, 
+				collapsible = T,
+				collapsed = F,
+				tags$p(textOutput("serving", inline = T)),
+				div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+		  )
+		  # ,
+		  # fluidRow(
+		  #   box(title = "Nutrition Table",
+		  #       solidHeader = T,
+		  #       width = 4, 
+		  #       collapsible = T,
+		  #       collapsed = F,
+		  #       tags$p(textOutput("serving", inline = T)),
+		  #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+		  #   )
+
       ),
       
       # tabItem(tabName = "subhome", 
