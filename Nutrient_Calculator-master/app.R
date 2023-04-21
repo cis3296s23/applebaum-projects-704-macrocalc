@@ -67,7 +67,7 @@ ui <- dashboardPage(
       useShinyjs()
     ),
     sidebarMenu(
-      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard"),
+      menuItem("Home", tabName = "Hometab" , icon = icon("house"),
                menuSubItem("Ingredient Selection", tabName = "sub1"),
                menuSubItem("Recipes", tabName = "subhome")
       ),
@@ -164,7 +164,8 @@ ui <- dashboardPage(
                     solidHeader = T,
                     width = 15,
                     collapsible = T,
-                    hidden(actionButton("delete_entry", "Delete Entry", icon = shiny::icon("trash"))),
+                    actionButton("load_log", "Load Log Entries", icon = shiny::icon("calendar-plus")),
+                    hidden(actionButton("delete_entry", "Delete Entry", icon = shiny::icon("calendar-xmark"))),
                     div(DT::DTOutput("log_table"), style = "font-size: 70%; margin: 5px;")
                 )
               ),
@@ -307,16 +308,20 @@ server <- function(input, output, session) {
   ingredients_list <- reactiveVal(list())
   
   # Delete recipe
-  observeEvent(g_edit_meal_id(), {
-    if (g_edit_meal_id() > 0) {
+  ## show or hide buttons
+  observe({
+    selected_rows <- input$recipe_table_rows_selected
+    
+    if (length(selected_rows) > 0) {
       show("delete_recipe")
       show("save_log")
-    }
-    else {
+    } else {
       hide("delete_recipe")
       hide("save_log")
     }
+    
   })
+  
   observeEvent(input$delete_recipe, {
     if (g_edit_meal_id() > 0) {
       # Import the database module
@@ -354,20 +359,7 @@ server <- function(input, output, session) {
     saved_log = database$get_log(g_user_email())
     
     # load it on the activity table
-    output$log_table <- renderDT({
-      # Define column names
-      names <- c("ID", "Meal Name", "Amount", "Details")
-      
-      # Convert data to data.frame
-      data_df <- do.call(rbind, saved_log)
-      colnames(data_df) <- names
-      
-      # Create the datatable
-      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
-      
-      #update global var for use in deletion
-      log_data$data_df <- data_df
-    })
+    click("load_log")
     
   })
   
@@ -394,30 +386,14 @@ server <- function(input, output, session) {
       #get the ID for selected row
       id_val <- log_data$data_df[selected_row, "ID"]
       
-      print("IDVALstart")
+      #print("IDVALstart")
       print(id_val[[1]])
-      print("IDVAlend")
+      #print("IDVAlend")
       
       database$delete_log(id_val[[1]])
 
       #refresh log table
-      logs <- database$get_log(g_user_email())
-      
-      # load it on the activity table
-      output$log_table <- renderDT({
-        # Define column names
-        names <- c("ID", "Meal Name", "Amount", "Details")
-        
-        # Convert data to data.frame
-        data_df <- do.call(rbind, logs)
-        colnames(data_df) <- names
-        
-        # Create the datatable
-        datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
-        
-        #update global var when refreshing
-        log_data$data_df <- data_df
-      })
+      click("load_log")
       
       
       clear_all_data()
@@ -425,6 +401,29 @@ server <- function(input, output, session) {
     }
     
   
+  })
+  
+  #Load log
+  observeEvent(input$load_log, {
+    database <- import("db")
+    
+    logs <- database$get_log(g_user_email())
+    
+    # load it on the activity table
+    output$log_table <- renderDT({
+      # Define column names
+      names <- c("ID", "Meal Name", "Amount", "Details")
+      
+      # Convert data to data.frame
+      data_df <- do.call(rbind, logs)
+      colnames(data_df) <- names
+      
+      # Create the datatable
+      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+      
+      #update global var when refreshing
+      log_data$data_df <- data_df
+    })
   })
 
   # Save recipe
@@ -768,17 +767,21 @@ server <- function(input, output, session) {
       input$quantity,
       input$measure_unit,
       names(ca_food_choices[ca_food_choices == input$food_id]),
-      as.numeric(input$food_id)
+      as.numeric(input$food_id),
       
-      ##give users a popup if they dont add an ingredient and restart the script
-      # # cat("Value of food_id is:", input$food_id, "yoyo\n")
-      # if(input$food_id == '') {
-      #   script_path <- parent.frame()$ofile
-      #   
-      #   print("please select a food")
-      #   print(script_path)
-      #   system(paste("Rscript", script_path))
-      # }
+      #User did not select an ingredient
+      if(input$food_id == '') {
+        
+        showModal(
+          modalDialog(
+            title = "Whoops!", HTML("Please select an ingredient before adding.<br>The app will now restart."), 
+          )
+        )
+        
+        Sys.sleep(5)
+        refresh()
+        
+      }
     ))
     
     # get actual working ingredient dataframe for dplyr
