@@ -23,6 +23,16 @@ CREATE TABLE IF NOT EXISTS recipes (
     details TEXT
 );
 ''')
+conn.execute('''
+CREATE TABLE IF NOT EXISTS log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    amounts NUMERIC,
+    details TEXT
+);
+''')
+
 # Remove all recipes from the "recipes" table
 # conn.execute("DELETE FROM recipes")
 conn.close()
@@ -52,6 +62,42 @@ def save_recipe(email, meal_name, serving_amounts, details):
     finally:
         conn.close()
 
+def save_log(email, meal_name, serving_amounts, details):
+    conn = create_connection()
+    try:
+        # Insert new recipe
+        conn.execute('INSERT INTO log (email, name, amounts, details) VALUES (?, ?, ?, ?)', (email, meal_name, serving_amounts, details))
+        conn.commit()
+
+        # # Get the saved data
+        # cursor = conn.execute('SELECT id, name, amounts, details FROM log WHERE email = ?', (email,))
+        # data = cursor.fetchall()
+        # return data        
+        
+        # # Get the ID of the last inserted row
+        # last_row_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        # # Retrieve the last inserted data
+        # last_inserted_data = conn.execute('SELECT id, name, amounts, details FROM log WHERE id = ?', (last_row_id,)).fetchone()
+        # # Return the last inserted data
+        # return last_inserted_data
+      
+      
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+        
+        
+def get_log(email):
+    conn = create_connection()
+    # retrieve all recipes
+    cursor = conn.execute('SELECT id, name, amounts, details FROM log WHERE email = ?', (email,))
+    logs = cursor.fetchall()
+    conn.close()
+    return logs
+
+
 def update_recipe(recipe_id, meal_name, serving_amounts, details):
     conn = create_connection()
     try:
@@ -70,6 +116,19 @@ def delete_recipe(recipe_id):
         # Delete recipe
         conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
 
+        conn.commit()
+    except sqlite3.Error as e:
+        # Handle any database errors that may occur
+        print("An error occurred while saving data to the database:", e)
+    finally:
+        conn.close()
+
+def delete_log(log_id):
+    conn = create_connection()
+    try:
+        # Delete Log
+        conn.execute("DELETE FROM log WHERE id = ?", (log_id,))
+        
         conn.commit()
     except sqlite3.Error as e:
         # Handle any database errors that may occur
