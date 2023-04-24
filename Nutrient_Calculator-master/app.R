@@ -376,23 +376,24 @@ server <- function(input, output, session) {
   })
   #handle button click
   observeEvent(input$delete_entry, {
-    selected_row <- input$log_table_rows_selected
+    selected_rows <- input$log_table_rows_selected
     
-    if (length(selected_row) == 1) {
+    if (length(selected_rows) >= 1) {
+      # Delete the log entry with the selected ID
       database <- import("db")
       
-      #get the ID for selected row
-      id_val <- log_data$data_df[selected_row, "ID"]
-      
-      #print("IDVALstart")
-      print(id_val[[1]])
-      #print("IDVAlend")
-      
-      database$delete_log(id_val[[1]])
+      for (i in selected_rows) {
+        # Get the ID for selected row
+        id_val <- log_data$data_df[i, "ID"]
+        
+        # Print the ID for debugging purposes
+        print(id_val[[1]])
 
-      #refresh log table
-      click("load_log")
+        database$delete_log(id_val[[1]])
+      }
     }
+    # Refresh the log table
+    click("load_log")
   })
   
   #Load log
