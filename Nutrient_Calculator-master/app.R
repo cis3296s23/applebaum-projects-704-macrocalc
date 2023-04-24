@@ -58,7 +58,8 @@ daily_value <- read.table("daily_values.txt", sep = "\t", header=T, stringsAsFac
 
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Nutrition Calculator"),
+  dashboardHeader(title = "MacroCalc"),
+  skin = "purple",
   dashboardSidebar(
     tags$head(
       HTML('<script src="https://accounts.google.com/gsi/client" async defer></script><script src="https://unpkg.com/jwt-decode/build/jwt-decode.js"></script>'),
@@ -66,12 +67,12 @@ ui <- dashboardPage(
       useShinyjs()
     ),
     sidebarMenu(
-      menuItem("Home", tabName = "Hometab" , icon = icon("dashboard"),
+      menuItem("Home", tabName = "Hometab" , icon = icon("house"),
                menuSubItem("Ingredient Selection", tabName = "sub1"),
                menuSubItem("Recipes", tabName = "subhome")
-               ),
+      ),
       menuItem("Activity Page", tabName =  "Activitytab", icon = icon("calendar")),
-      tags$p("Notice: Consult your physician")
+      tags$p("Notice: Consult your physician.")
       # OldNote: All nutrient information is based on the Canadian Nutrient File. Nutrient amounts do not account for variation in nutrient retention and yield losses of ingredients during preparation. % daily values (DV) are taken from the Table of Daily Values from the Government of Canada. This data should not be used for nutritional labeling.
     ),
     div(id="g_id_onload", "data-callback"="handleCredentialResponse", "data-client_id"="789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com", "data-context"="signin",
@@ -84,44 +85,45 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName = "sub1", 
-        selectizeInput(
-          'food_id', '1. Ingredient', choices = ca_food_choices,
-          options = list(
-            placeholder = 'Type to search for ingredient',
-            onInitialize = I('function() { this.setValue(""); }')
-          )
-        ),
-        conditionalPanel('input.food_id != ""', 
-                         selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
-                         numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
-        actionButton("add", "Add ingredient"),
-        actionButton("remove", "Remove ingredient"),
-        numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
-        # textInput("meal_name", "Meal Name:"),
-        fluidRow(
-          box(title = "Ingredients",
-              solidHeader = T,
-              width = 4,
-              collapsible = T,
-              div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
-          box(title = "Nutrition Table",
-              solidHeader = T,
-              width = 4, 
-              collapsible = T,
-              collapsed = F,
-              tags$p(textOutput("serving", inline = T)),
-              div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
-        )
-        # ,
-        # fluidRow(
-        #   box(title = "Nutrition Table",
-        #       solidHeader = T,
-        #       width = 4, 
-        #       collapsible = T,
-        #       collapsed = F,
-        #       tags$p(textOutput("serving", inline = T)),
-        #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
-        #   )
+		  selectizeInput(
+			'food_id', '1. Ingredient', choices = ca_food_choices,
+			options = list(
+			  placeholder = 'Type to search for ingredient',
+			  onInitialize = I('function() { this.setValue(""); }')
+			)
+		  ),
+		  conditionalPanel('input.food_id != ""', 
+						   selectizeInput('measure_unit', '2. Measure Unit', choices = c("Select an ingredient" = "")),
+						   numericInput('quantity', '3. Quantity', value = 1, min = 0, step = 1)),
+		  actionButton("add", "Add ingredient"),
+		  actionButton("remove", "Remove ingredient"),
+		  numericInput("serving", "Number of servings contained", min = 0.01, step = 1, value = 1),
+		  hidden(textInput("meal_name", "Meal Name:")),
+		  fluidRow(
+			box(title = "Ingredients",
+				solidHeader = T,
+				width = 4,
+				collapsible = T,
+				div(DT::DTOutput("ing_df"), style = "font-size: 70%;")),
+			box(title = "Nutrition Table",
+				solidHeader = T,
+				width = 4, 
+				collapsible = T,
+				collapsed = F,
+				tags$p(textOutput("serving", inline = T)),
+				div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+		  )
+		  # ,
+		  # fluidRow(
+		  #   box(title = "Nutrition Table",
+		  #       solidHeader = T,
+		  #       width = 4, 
+		  #       collapsible = T,
+		  #       collapsed = F,
+		  #       tags$p(textOutput("serving", inline = T)),
+		  #       div(DT::DTOutput("nutrient_table"), style = "font-size: 70%;"))
+		  #   )
+
       ),
       
       # tabItem(tabName = "subhome", 
@@ -137,6 +139,7 @@ ui <- dashboardPage(
                     collapsible = T,
                     div(actionButton("save_recipe", "Save Recipe", icon = shiny::icon("cloud-arrow-up")),
                         hidden(actionButton("delete_recipe", "Delete Recipe", icon = shiny::icon("trash"))),
+                        hidden(actionButton("save_log", "Save to log", icon = shiny::icon("save"))),
                         style = "font-size: 70%; margin: 5px;"
                     ),
                     div(textOutput("recipe_table_edit_id"), style = "font-size: 70%; margin: 5px;"),
@@ -156,7 +159,17 @@ ui <- dashboardPage(
                 )
               )
       ),
-      tabItem(tabName = "Activitytab", 
+      tabItem(tabName = "Activitytab",
+              fluidRow(
+                box(title = "Your Log",
+                    solidHeader = T,
+                    width = 15,
+                    collapsible = T,
+                    actionButton("load_log", "Load Log Entries", icon = shiny::icon("calendar-plus")),
+                    hidden(actionButton("delete_entry", "Delete Entry", icon = shiny::icon("calendar-xmark"))),
+                    div(DT::DTOutput("log_table"), style = "font-size: 70%; margin: 5px;")
+                )
+              ),
               fluidRow(
                 valueBoxOutput("calories"),
                 valueBoxOutput("over_nutrient"),
@@ -211,6 +224,8 @@ server <- function(input, output, session) {
   g_meal_data <- reactiveVal(list(list()))
   g_edit_meal_id <- reactiveVal(0)
   g_all_recipe_rendered <- reactiveVal(FALSE)
+  
+  log_data <- reactiveValues(data_df = NULL)
   
   ########## define function here
   clear_ing_df <- function() {
@@ -288,20 +303,26 @@ server <- function(input, output, session) {
   }
   
   
-
+  
   ########## SAVE RECIPE
   # Define a reactive variable to store the list of ingredients
   ingredients_list <- reactiveVal(list())
-
+  
   # Delete recipe
-  observeEvent(g_edit_meal_id(), {
-    if (g_edit_meal_id() > 0) {
+  ## show or hide buttons
+  observe({
+    selected_rows <- input$recipe_table_rows_selected
+    
+    if (length(selected_rows) > 0) {
       show("delete_recipe")
-    }
-    else {
+      show("save_log")
+    } else {
       hide("delete_recipe")
+      hide("save_log")
     }
+    
   })
+  
   observeEvent(input$delete_recipe, {
     if (g_edit_meal_id() > 0) {
       # Import the database module
@@ -325,6 +346,87 @@ server <- function(input, output, session) {
     
   })
   
+  # Save log
+  observeEvent(input$save_log, {
+    
+    # Convert the list to JSON text
+    recipe_data <- toJSON(ingredients_list())
+    
+    # Save data to the log table db
+    # Import the database module
+    database <- import("db")
+    
+    database$save_log(g_user_email(), input$meal_name, input$serving, recipe_data)
+    saved_log = database$get_log(g_user_email())
+    
+    # load it on the activity table
+    click("load_log")
+    
+  })
+  
+  #Delete log
+  #first handle button visibility based on row selection
+  observe({
+    selected_rows <- input$log_table_rows_selected
+    
+    if (length(selected_rows) > 0) {
+          #print("nothidden")
+          show("delete_entry")
+        } else {
+          #print("yeshidden")
+          hide("delete_entry")
+        }
+  })
+  #handle button click
+  observeEvent(input$delete_entry, {
+    selected_row <- input$log_table_rows_selected
+    
+    if (length(selected_row) == 1) {
+      database <- import("db")
+      
+      #get the ID for selected row
+      id_val <- log_data$data_df[selected_row, "ID"]
+      
+      #print("IDVALstart")
+      print(id_val[[1]])
+      #print("IDVAlend")
+      
+      database$delete_log(id_val[[1]])
+
+      #refresh log table
+      click("load_log")
+      
+      
+      clear_all_data()
+      
+    }
+    
+  
+  })
+  
+  #Load log
+  observeEvent(input$load_log, {
+    database <- import("db")
+    
+    logs <- database$get_log(g_user_email())
+    
+    # load it on the activity table
+    output$log_table <- renderDT({
+      # Define column names
+      names <- c("ID", "Meal Name", "Amount", "Details")
+      
+      # Convert data to data.frame
+      data_df <- do.call(rbind, logs)
+      colnames(data_df) <- names
+      
+      # Create the datatable
+      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
+      
+      #update global var when refreshing
+      log_data$data_df <- data_df
+    })
+  })
+
   # Save recipe
   observeEvent(input$save_recipe, {
     result <- showModal(
@@ -378,7 +480,7 @@ server <- function(input, output, session) {
     else {
       database$save_recipe(g_user_email(), meal_name, input$serving, recipe_data)
     }
-
+    
     # Show confirmation message
     showModal(modalDialog(paste0("Save Recipes '", meal_name ,"' successfully!"), easyClose = TRUE))
     delay(1000, removeModal())
@@ -413,7 +515,7 @@ server <- function(input, output, session) {
     output$recipe_table <- renderDT({
       # Define column names
       names <- c("ID", "Meal Name", "Amount", "Details")
-
+      
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
       colnames(data_df) <- names
@@ -435,8 +537,10 @@ server <- function(input, output, session) {
       g_edit_meal_id(as.numeric(row_data[[1]]))
       updateTextInput(session, "meal_name", value = row_data[[2]])
       updateNumericInput(session, "serving", value = as.numeric(row_data[[3]]))
-      load_ingredients_data(fromJSON(row_data[[4]]))
       
+      if (length(fromJSON(row_data[[4]])) > 0) {
+        load_ingredients_data(fromJSON(row_data[[4]]))
+      }
       
       # showModal(modalDialog(
       #   title = "Mofify Meal",
@@ -497,7 +601,7 @@ server <- function(input, output, session) {
       # save to db
       # Import the database module
       database <- import("db")
-
+      
       # Update recipe
       database$update_recipe(id_value, name_value, amount_value, details_value)
       
@@ -624,6 +728,7 @@ server <- function(input, output, session) {
   observeEvent(input$food_id, {
     g_food_id(input$food_id)
   })
+  
   observeEvent(input$measure_unit, {
     g_measure_unit(input$measure_unit)
   })
@@ -651,25 +756,46 @@ server <- function(input, output, session) {
   
   # step 3 update the ingredient dataframe
   observeEvent(input$remove, {
-    isolate(ing_df$df<-ing_df$df[-(nrow(ing_df$df)),])
-    isolate(ing_df$measure <- ing_df$measure[-nrow(ing_df$measure),])
+    isolate(ing_df$df <- ing_df$df[-(nrow(ing_df$df)), ])
+    isolate(ing_df$measure <-
+              ing_df$measure[-nrow(ing_df$measure), ])
     ingredients_list(ing_df$df)
   })
   
   
   observeEvent(input$add, {
-    isolate(ing_df$df[nrow(ing_df$df) + 1,] <- c(input$quantity,
-                                                 input$measure_unit, 
-                                                 names(ca_food_choices[ca_food_choices == input$food_id]), 
-                                                 as.numeric(input$food_id)))
+    isolate(ing_df$df[nrow(ing_df$df) + 1, ] <- c(
+      input$quantity,
+      input$measure_unit,
+      names(ca_food_choices[ca_food_choices == input$food_id]),
+      as.numeric(input$food_id),
+      
+      #User did not select an ingredient
+      if(input$food_id == '') {
+        
+        showModal(
+          modalDialog(
+            title = "Whoops!", HTML("Please select an ingredient before adding.<br>The app will now restart."), 
+          )
+        )
+        
+        Sys.sleep(5)
+        refresh()
+        
+      }
+    ))
     
     # get actual working ingredient dataframe for dplyr
     input_measure <- measure_df()
-    input_measure <- input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit, ]
-    if(nrow(input_measure) > 1){
-      input_measure <- input_measure[which(abs(input_measure$numeric-input$quantity)==min(abs(input_measure$numeric-input$quantity))),]
+    input_measure <-
+      input_measure[paste(measure_df()$units, measure_df()$description) == input$measure_unit,]
+    if (nrow(input_measure) > 1) {
+      input_measure <-
+        input_measure[which(abs(input_measure$numeric - input$quantity) == min(abs(
+          input_measure$numeric - input$quantity
+        ))), ]
     }
-    isolate(ing_df$measure[nrow(ing_df$measure) + 1, ] <- input_measure)
+    isolate(ing_df$measure[nrow(ing_df$measure) + 1,] <- input_measure)
     # update choices
     updateNumericInput(session, 'quantity', '3. Quantity', 1)
     updateSelectizeInput(session, 'measure_unit', '2. Measure Unit')
@@ -748,7 +874,8 @@ server <- function(input, output, session) {
                           name = "% Daily Value") +
       theme(
         legend.position = "none",
-        panel.background = element_rect(fill = "lightyellow"))
+        panel.background = element_rect(fill = "lightyellow"),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
     ggplotly(plot_min)
   })
   output$vitamin_plot <- renderPlotly({
@@ -802,7 +929,7 @@ server <- function(input, output, session) {
 }
 
 # # For release
-# # Run the application 
+# # Run the application
 # shinyApp(ui = ui, server = server)
 # # runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
