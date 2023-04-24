@@ -408,6 +408,12 @@ server <- function(input, output, session) {
       
       # Convert data to data.frame
       data_df <- do.call(rbind, logs)
+
+      # fix bug no data
+      if (length(logs) == 0) {
+        data_df <- data.frame(matrix(ncol = length(names), nrow = 0))
+      }
+      
       colnames(data_df) <- names
       
       # Create the datatable
@@ -509,6 +515,12 @@ server <- function(input, output, session) {
       
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
+      
+      # fix bug no data
+      if (length(recipes) == 0) {
+        data_df <- data.frame(matrix(ncol = length(names), nrow = 0))
+      }
+
       colnames(data_df) <- names
       
       # Create the datatable
