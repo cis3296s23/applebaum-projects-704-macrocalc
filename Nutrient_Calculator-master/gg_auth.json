@@ -1,8 +1,0 @@
-{
-    "client_id": "789616587258-lt9ji16j9u7jp998itd5kivgq249t0v3.apps.googleusercontent.com",
-    "client_secret": "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",
-    "scopes": [
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/userinfo.email"
-    ]
-}

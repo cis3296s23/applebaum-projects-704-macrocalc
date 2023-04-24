@@ -155,7 +155,7 @@ ui <- dashboardPage(
                     solidHeader = T,
                     width = 12,
                     div(downloadButton('download_ingredient_json', 'Download Ingredients'), style = "font-size: 70%;"),
-                    div(fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
+                    div(fileInput("upload_ingredient_json", label = "", placeholder = "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
                 )
               )
       ),
@@ -310,17 +310,14 @@ server <- function(input, output, session) {
   
   # Delete recipe
   ## show or hide buttons
-  observe({
-    selected_rows <- input$recipe_table_rows_selected
-    
-    if (length(selected_rows) > 0) {
+  observeEvent(g_edit_meal_id(), {
+    if (g_edit_meal_id() > 0) {
       show("delete_recipe")
       show("save_log")
     } else {
       hide("delete_recipe")
       hide("save_log")
     }
-    
   })
   
   observeEvent(input$delete_recipe, {
@@ -395,13 +392,7 @@ server <- function(input, output, session) {
 
       #refresh log table
       click("load_log")
-      
-      
-      clear_all_data()
-      
     }
-    
-  
   })
   
   #Load log
