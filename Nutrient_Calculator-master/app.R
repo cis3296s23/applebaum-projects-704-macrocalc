@@ -364,15 +364,24 @@ server <- function(input, output, session) {
   #Delete log
   #first handle button visibility based on row selection
   observe({
+    # For table logs
     selected_rows <- input$log_table_rows_selected
     
     if (length(selected_rows) > 0) {
-          #print("nothidden")
-          show("delete_entry")
-        } else {
-          #print("yeshidden")
-          hide("delete_entry")
-        }
+      #print("nothidden")
+      show("delete_entry")
+    } else {
+      #print("yeshidden")
+      hide("delete_entry")
+    }
+    
+    # For table ingredients
+    selected_rows <- input$ing_df_rows_selected
+    if (length(selected_rows) > 0) {
+      show("remove")
+    } else {
+      hide("remove")
+    }
   })
   #handle button click
   observeEvent(input$delete_entry, {
@@ -760,11 +769,17 @@ server <- function(input, output, session) {
   
   # step 3 update the ingredient dataframe
   observeEvent(input$remove, {
-    isolate(ing_df$df <- ing_df$df[-(nrow(ing_df$df)), ])
-    isolate(ing_df$measure <-
-              ing_df$measure[-nrow(ing_df$measure), ])
-    ingredients_list(ing_df$df)
+    selected_rows <- input$ing_df_rows_selected
+    
+    if (length(selected_rows) > 0) {
+      for (i in selected_rows) {
+        isolate(ing_df$df <- ing_df$df[-i, ])
+        isolate(ing_df$measure <- ing_df$measure[-i, ])
+      }
+      ingredients_list(ing_df$df)
+    }
   })
+  
   
   
   observeEvent(input$add, {
@@ -903,7 +918,7 @@ server <- function(input, output, session) {
   # dt indicator
   output$ing_df <- DT::renderDataTable(ing_df$df[,1:3], 
                                        # colnames = c("Quantity", "Units", "Ingredient"), 
-                                       rownames=F, options = list(pageLength = 5))
+                                       rownames=F, options = list(pageLength = 10))
   output$nutrient_table <- DT::renderDataTable(nutrient_table())
   # value boxes
   output$calories <- renderValueBox({
