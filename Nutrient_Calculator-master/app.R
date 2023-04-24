@@ -155,7 +155,7 @@ ui <- dashboardPage(
                     solidHeader = T,
                     width = 12,
                     div(downloadButton('download_ingredient_json', 'Download Ingredients'), style = "font-size: 70%;"),
-                    div(fileInput("upload_ingredient_json", "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
+                    div(fileInput("upload_ingredient_json", label = "", placeholder = "Upload Ingredients", accept = ".json"), style = "font-size: 70%;")
                 )
               )
       ),
@@ -310,17 +310,14 @@ server <- function(input, output, session) {
   
   # Delete recipe
   ## show or hide buttons
-  observe({
-    selected_rows <- input$recipe_table_rows_selected
-    
-    if (length(selected_rows) > 0) {
+  observeEvent(g_edit_meal_id(), {
+    if (g_edit_meal_id() > 0) {
       show("delete_recipe")
       show("save_log")
     } else {
       hide("delete_recipe")
       hide("save_log")
     }
-    
   })
   
   observeEvent(input$delete_recipe, {
@@ -395,13 +392,7 @@ server <- function(input, output, session) {
 
       #refresh log table
       click("load_log")
-      
-      
-      clear_all_data()
-      
     }
-    
-  
   })
   
   #Load log
@@ -417,6 +408,12 @@ server <- function(input, output, session) {
       
       # Convert data to data.frame
       data_df <- do.call(rbind, logs)
+
+      # fix bug no data
+      if (length(logs) == 0) {
+        data_df <- data.frame(matrix(ncol = length(names), nrow = 0))
+      }
+      
       colnames(data_df) <- names
       
       # Create the datatable
@@ -518,6 +515,12 @@ server <- function(input, output, session) {
       
       # Convert data to data.frame
       data_df <- do.call(rbind, recipes)
+      
+      # fix bug no data
+      if (length(recipes) == 0) {
+        data_df <- data.frame(matrix(ncol = length(names), nrow = 0))
+      }
+
       colnames(data_df) <- names
       
       # Create the datatable
@@ -675,12 +678,12 @@ server <- function(input, output, session) {
       user_info_db <- database$get_user_info(g_user_email())
       # New user
       if (is.null(user_info_db)) {
-        print("New user! Save data to db")
-        database$save_user_info(user_info$name, g_user_email())
+        # print("New user! Save data to db")
+        database$save_user_info(g_user_name(), g_user_email())
       }
       # Existing user
       else {
-        print("Existing user, print all users")
+        # print("Existing user, print all users")
         test <- database$get_all_data()
         dput(test)
       }
