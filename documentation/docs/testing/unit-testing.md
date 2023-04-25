@@ -2,8 +2,6 @@
 sidebar_position: 1
 ---
 # Unit tests
-For each method, one or more test cases.
+Below is some of the testing done. The 3 sections show setup, packages used, and various tests run. Personal information used during testing was blocked out for sake of keeping names and emails private.
 
-A test case consists of input parameter values and expected results.
-
-All external classes should be stubbed using mock objects.
+![alt text](https://github.com/cis3296s23/MacroCalc704/blob/main/testExs.png)
