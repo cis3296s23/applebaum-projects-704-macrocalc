@@ -480,11 +480,11 @@ server <- function(input, output, session) {
       
       colnames(data_df) <- names
       
-      # Create the datatable
-      datatable(data_df, editable = FALSE, options = list(pageLength = 5, selection = "single"))
-      
       #update global var when refreshing
       log_data$data_df <- data_df
+      
+      # Create the datatable
+      datatable(data_df, editable = FALSE, selection = "single", options = list(pageLength = 5))
     })
   })
 
