@@ -419,6 +419,10 @@ server <- function(input, output, session) {
     database$save_log(g_user_email(), input$meal_name, input$serving, recipe_data)
     saved_log = database$get_log(g_user_email())
     
+    # Show confirmation message
+    showModal(modalDialog(paste0("Saved '", input$meal_name ,"' to Log successfully!"), easyClose = TRUE))
+    delay(1000, removeModal())
+    
     # load it on the activity table
     click("load_log")
     
@@ -455,16 +459,17 @@ server <- function(input, output, session) {
       database <- import("db")
       
       #get the ID for selected row
-      id_val <- log_data$data_df[selected_row, "ID"]
+      id_val <- log_data$data_df[selected_rows, "ID"]
       
       #print("IDVALstart")
       #print(id_val[[1]])
       #print("IDVAlend")
       
       database$delete_log(id_val[[1]])
-
-    #refresh log table
-    click("load_log")
+      
+      #refresh log table
+      click("load_log")
+    }
   })
   
   #Load log
