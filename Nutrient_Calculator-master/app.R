@@ -455,7 +455,7 @@ server <- function(input, output, session) {
       database <- import("db")
       
       #get the ID for selected row
-      id_val <- log_data$data_df[selected_row, "ID"]
+      id_val <- log_data$data_df[selected_rows, "ID"]
       
       #print("IDVALstart")
       #print(id_val[[1]])
