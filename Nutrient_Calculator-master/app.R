@@ -463,8 +463,9 @@ server <- function(input, output, session) {
       
       database$delete_log(id_val[[1]])
 
-    #refresh log table
-    click("load_log")
+      #refresh log table
+      click("load_log")
+    }
   })
   
   #Load log
