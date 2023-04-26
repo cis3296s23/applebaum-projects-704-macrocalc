@@ -1,5 +1,7 @@
 ---
-sidebar_position: 2
+sidebar_position: 4
 ---
 
-# System Block Diagram
+# UML Class Diagram
+![UML Class Diagram](https://raw.githubusercontent.com/cis3296s23/MacroCalc704/main/documentation/static/UML_Diagram.png 'UML Class Diagram')
+For a detailed explanation of this diagram, find the **design** subsection in the **System Architecture** section in the sidebar.

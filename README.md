@@ -11,7 +11,7 @@
 
 ## Project Abstract
 
-This application aims to provide indivoduals with a tool to calculate the nutrient breakdown of any recipe. Users can give the application a recipe with ingredients and their amounts which will then be converted to its nutrient breakdown per serving based on values from an existing database. Additionally, meals can be saved and modified and compared to each other. User meals can be logged and compared against a preset macronutrient limit to help users reach their goals.
+This application aims to provide individuals with a tool to calculate the nutrient breakdown of any recipe. Users can give the application a recipe with ingredients and their amounts which will then be converted to its nutrient breakdown per serving based on values from an existing database. Additionally, meals can be saved and modified and compared to each other. User meals can be logged and compared against a preset macronutrient limit to help users reach their goals.
 
 ## Conceptual Design
 
