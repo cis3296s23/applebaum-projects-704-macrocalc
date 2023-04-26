@@ -222,11 +222,29 @@ server <- function(input, output, session) {
   g_measure_unit <- reactiveVal("")
   g_quantity <- reactiveVal(0)
   g_meal_data <- reactiveVal(list(list()))
+  g_log_data <- reactiveVal(list(list()))
   g_edit_meal_id <- reactiveVal(0)
   g_all_recipe_rendered <- reactiveVal(FALSE)
   
   log_data <- reactiveValues(data_df = NULL)
   
+  log_ing_df <- shiny::reactiveValues()
+  log_ing_df$df <- data.frame("quantity" = numeric(), 
+                          "units" = character(), 
+                          "ingredient_name" = character(), 
+                          "FoodID" = numeric(), 
+                          stringsAsFactors = F)
+  log_ing_df$measure <- data.frame("numeric" = numeric(),
+                               "units" = character(),
+                               "description" = character(),
+                               "ConversionFactorValue" = numeric(),
+                               "MeasureID" = numeric(),
+                               "FoodID" = numeric(),
+                               stringsAsFactors = F)
+  log_serving <- reactiveVal(0)
+  log_food_id <- reactiveVal(0)
+  log_quantity <- reactiveVal(0)
+
   ########## define function here
   clear_ing_df <- function() {
     ing_df$df <- data.frame("quantity" = numeric(), 
@@ -301,6 +319,51 @@ server <- function(input, output, session) {
     }
     ingredients_list(ing_df$df) 
   }
+  
+  load_log_ingredients_data <- function(my_object) {
+    # clear existing data before upload ingredient
+    log_ing_df$df <- data.frame("quantity" = numeric(), 
+                            "units" = character(), 
+                            "ingredient_name" = character(), 
+                            "FoodID" = numeric(), 
+                            stringsAsFactors = F)
+    log_ing_df$measure <- data.frame("numeric" = numeric(),
+                                 "units" = character(),
+                                 "description" = character(),
+                                 "ConversionFactorValue" = numeric(),
+                                 "MeasureID" = numeric(),
+                                 "FoodID" = numeric(),
+                                 stringsAsFactors = F)
+    
+
+    for (i in 1:nrow(my_object)) {
+      # prepare to import
+      log_food_id(as.numeric(my_object$FoodID[i]))
+      local_log_measure_unit <- my_object$units[i]
+      log_quantity(as.numeric(my_object$quantity[i]))
+      
+      log_ing_df$df[nrow(log_ing_df$df) + 1,] <- c(log_quantity(),
+                                           local_log_measure_unit,
+                                           my_object$ingredient_name[i],
+                                           log_food_id())
+      
+      # get actual working ingredient dataframe for dplyr
+      input_measure <- log_measure_df()
+      input_measure <- input_measure[paste(log_measure_df()$units, log_measure_df()$description) == local_log_measure_unit, ]
+      if(nrow(input_measure) > 1){
+        input_measure <- input_measure[which(abs(input_measure$numeric-log_quantity())==min(abs(input_measure$numeric-log_quantity()))),]
+      }
+      isolate(log_ing_df$measure[nrow(log_ing_df$measure) + 1, ] <- input_measure)
+    }
+  }
+  
+  log_measure_df <- eventReactive(log_food_id(),{
+    log_measure_df <- ca_food_name[ca_food_name$FoodID==log_food_id(), "FoodID"] %>% 
+      left_join(ca_conversion_factor) %>% 
+      left_join(ca_measure_name) %>% 
+      select(numeric, units, description, ConversionFactorValue, MeasureID, FoodID) 
+    log_measure_df
+  })
   
   
   
@@ -391,17 +454,16 @@ server <- function(input, output, session) {
       # Delete the log entry with the selected ID
       database <- import("db")
       
-      for (i in selected_rows) {
-        # Get the ID for selected row
-        id_val <- log_data$data_df[i, "ID"]
-        
-        # Print the ID for debugging purposes
-        print(id_val[[1]])
+      #get the ID for selected row
+      id_val <- log_data$data_df[selected_row, "ID"]
+      
+      #print("IDVALstart")
+      #print(id_val[[1]])
+      #print("IDVAlend")
+      
+      database$delete_log(id_val[[1]])
 
-        database$delete_log(id_val[[1]])
-      }
-    }
-    # Refresh the log table
+    #refresh log table
     click("load_log")
   })
   
@@ -410,6 +472,7 @@ server <- function(input, output, session) {
     database <- import("db")
     
     logs <- database$get_log(g_user_email())
+    g_log_data(logs)
     
     # load it on the activity table
     output$log_table <- renderDT({
@@ -426,11 +489,11 @@ server <- function(input, output, session) {
       
       colnames(data_df) <- names
       
-      # Create the datatable
-      datatable(data_df, editable = FALSE, options = list(pageLength = 5), selection = "single")
-      
       #update global var when refreshing
       log_data$data_df <- data_df
+      
+      # Create the datatable
+      datatable(data_df, editable = FALSE, selection = "single", options = list(pageLength = 5))
     })
   })
 
@@ -539,6 +602,24 @@ server <- function(input, output, session) {
     
     g_all_recipe_rendered(TRUE)
     
+  })
+  
+  #show log meal in visual
+  observeEvent(input$log_table_rows_selected, {
+    selected_row <- isolate(input$log_table_rows_selected)
+    
+    # Change to single selection does not work, temporary fix here
+    # if (length(selected_row) > 0) {
+    if (length(selected_row) == 1) {
+      row_data <- g_log_data()[[selected_row]]
+      
+      #leverage existing feature
+      log_serving(as.numeric(row_data[[3]]))
+      
+      if (length(fromJSON(row_data[[4]])) > 0) {
+        load_log_ingredients_data(fromJSON(row_data[[4]]))
+      }
+    }
   })
   
   observeEvent(input$recipe_table_rows_selected, {
@@ -842,6 +923,24 @@ server <- function(input, output, session) {
     
     measure_food_df
   })
+  log_nutrition_df <- reactive({
+    measure_food_df <- log_ing_df$measure
+    ing_quant <- log_ing_df$df
+    measure_food_df$quantity <- ing_quant$quantity
+    measure_food_df <- measure_food_df %>%
+      left_join(ca_nutrient_amount) %>%
+      left_join(ca_nutrient_name) %>%
+      # filter(NutrientID %in% select_nutrients) %>%
+      mutate(NutrientName = tolower(NutrientName)) %>%
+      mutate(NutrientValue = as.numeric(NutrientValue) * as.numeric(ConversionFactorValue) * as.numeric(quantity) / as.numeric(numeric) / log_serving()) %>%
+      select(NutrientName, NutrientValue, NutrientID, NutrientUnit, ConversionFactorValue, quantity, FoodID) %>% 
+      group_by(NutrientName) %>% 
+      summarize(Value = round(sum(NutrientValue, na.rm = T),2),
+                Unit = first(NutrientUnit),
+                NutrientID = first(NutrientID))
+    
+    measure_food_df
+  })
   # display nutrients necessary for label
   nutrient_table <- reactive({
     select_nutrients <- c(208, 204, 606, 605, 601, 307, 205, 291, 269, 203, 814, 401, 301, 303)
@@ -852,9 +951,9 @@ server <- function(input, output, session) {
   })
   # df with dv%
   dv_df <- reactive({
-    dv_df <- daily_value %>% left_join(nutrition_df())
+    dv_df <- daily_value %>% left_join(log_nutrition_df())
     # hack for total sat fats and trans fats
-    dv_df$Value[2] <- sum(nutrition_df()$Value[nutrition_df()$NutrientID %in% c(605, 606)], na.rm = T)
+    dv_df$Value[2] <- sum(log_nutrition_df()$Value[log_nutrition_df()$NutrientID %in% c(605, 606)], na.rm = T)
     dv_df$Unit[2] <- "g"
     dv_df$pct_dv <- round(dv_df$Value / dv_df$DV, 3) * 100
     dv_df
@@ -922,23 +1021,23 @@ server <- function(input, output, session) {
   output$nutrient_table <- DT::renderDataTable(nutrient_table())
   # value boxes
   output$calories <- renderValueBox({
-    valueBox(paste0(nutrition_df()$Value[nutrition_df()$NutrientID == 208], "kcal"), 
+    valueBox(paste0(log_nutrition_df()$Value[log_nutrition_df()$NutrientID == 208], "kcal"), 
              "Calories", icon = icon("fire"), color = "yellow")
   })
   output$over_nutrient <- renderValueBox({
-    nutrition_df <- dv_df() %>% 
+    log_nutrition_df <- dv_df() %>% 
       # filter(NutrientID %in% c(601, 204, 307, 269, 0)) %>% 
       tidyr::drop_na(pct_dv) %>% filter(pct_dv > 100)
-    if(nrow(nutrition_df) > 0){
-      valueBox("Over Daily Value", HTML(paste0(nutrition_df$Nutrient, sep="<br>")), icon = icon("exclamation-triangle"), color = "red")
+    if(nrow(log_nutrition_df) > 0){
+      valueBox("Over Daily Value", HTML(paste0(log_nutrition_df$Nutrient, sep="<br>")), icon = icon("exclamation-triangle"), color = "red")
     } else {
       valueBox("All nutrients", "below recommended DV", icon = icon("exclamation-triangle"), color = "green")
     }
   })
   output$rich_nutrient <- renderValueBox({
-    nutrition_df <- dv_df() %>% tidyr::drop_na(pct_dv) %>% filter(pct_dv >= 50) %>% filter(pct_dv < 100)
-    if(nrow(nutrition_df) > 0){
-      valueBox("High levels* of ", HTML(paste0(c(nutrition_df$Nutrient,"*above 50% recommended DV"),  sep="<br>")), icon = icon("exclamation-triangle"), color = "green")
+    log_nutrition_df <- dv_df() %>% tidyr::drop_na(pct_dv) %>% filter(pct_dv >= 50) %>% filter(pct_dv < 100)
+    if(nrow(log_nutrition_df) > 0){
+      valueBox("High levels* of ", HTML(paste0(c(log_nutrition_df$Nutrient,"*above 50% recommended DV"),  sep="<br>")), icon = icon("exclamation-triangle"), color = "green")
     } else {
       valueBox(HTML("All nutrients"), "below 50% recommended DV", icon = icon("exclamation-triangle"), color = "orange")
     }
@@ -947,14 +1046,14 @@ server <- function(input, output, session) {
   output$serving <- renderText(paste("for 1 serving (", input$serving, "servings in recipe)"))
 }
 
-# # For release
-# # Run the application
-# shinyApp(ui = ui, server = server)
-# # runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
+# For release
+# Run the application
+shinyApp(ui = ui, server = server)
+# runApp(shinyApp(ui = ui, server = server), port=7147) # for testing with gg sign in
 
 
-# For testing gg sign-in on localhost or RStudio
-# gg sign-in didn't work with 127.0.0.1, open a browser tab or change it to localhost
-# http://localhost:7147/
-# shinyApp(ui = ui, server = server)
-runApp(shinyApp(ui = ui, server = server), port=7147, launch.browser = TRUE) # for testing with gg sign in
+# # For testing gg sign-in on localhost or RStudio
+# # gg sign-in didn't work with 127.0.0.1, open a browser tab or change it to localhost
+# # http://localhost:7147/
+# # shinyApp(ui = ui, server = server)
+# runApp(shinyApp(ui = ui, server = server), port=7147, launch.browser = TRUE) # for testing with gg sign in
