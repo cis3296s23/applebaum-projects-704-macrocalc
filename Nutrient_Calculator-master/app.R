@@ -222,7 +222,9 @@ server <- function(input, output, session) {
   g_measure_unit <- reactiveVal("")
   g_quantity <- reactiveVal(0)
   g_meal_data <- reactiveVal(list(list()))
+  g_log_data <- reactiveVal(list(list()))
   g_edit_meal_id <- reactiveVal(0)
+  g_log_meal_id <- reactiveVal(0)
   g_all_recipe_rendered <- reactiveVal(FALSE)
   
   log_data <- reactiveValues(data_df = NULL)
@@ -385,7 +387,7 @@ server <- function(input, output, session) {
       id_val <- log_data$data_df[selected_row, "ID"]
       
       #print("IDVALstart")
-      print(id_val[[1]])
+      #print(id_val[[1]])
       #print("IDVAlend")
       
       database$delete_log(id_val[[1]])
@@ -529,6 +531,23 @@ server <- function(input, output, session) {
     
     g_all_recipe_rendered(TRUE)
     
+  })
+  
+  #show log meal in visual
+  observeEvent(input$log_table_rows_selected, {
+    selected_row <- isolate(input$log_table_rows_selected)
+    if (length(selected_row) > 0) {
+      row_data <- g_log_data() [[selected_row]]
+      
+      #leverage existing feature
+      g_log_meal_id(as.numeric(row_data[[1]]))
+      updateTextInput(session, "meal_name", value = row_data[[2]])
+      updateNumericInput(session, "serving", value = as.numeric(row_data[[3]]))
+      
+      if (length(fromJSON(row_data[[4]])) > 0) {
+        load_ingredients_data(fromJSON(row_data[[4]]))
+      }
+    }
   })
   
   observeEvent(input$recipe_table_rows_selected, {
